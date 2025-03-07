@@ -68,7 +68,7 @@ export const adminDashboard = async (req, res) => {
     }
 
     // Fetch admin-specific data (Example: User Management, Revenue Reports, etc.)
-    res.json({ message: "Welcome to Admin Dashboard", data: {} });
+    res.json({ message: "Welcome to Admin Dashboard..", data: {} });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
