@@ -19,14 +19,12 @@ export const registerUser = async (req, res) => {
       address,
       tradelicense,
       password,
-      role, // Adding role from request body (optional)
+      role, // Optional role
     } = req.body;
 
-    // Check if user already exists
-    let existingUser = await User.findOne({ email });
-    if (existingUser)
-      return res.status(400).json({ message: "Email already registered" });
+    let existingUser;
 
+    // Check if user already exists
     existingUser = await User.findOne({ phone });
     if (existingUser)
       return res.status(400).json({ message: "Phone already registered" });
@@ -35,13 +33,7 @@ export const registerUser = async (req, res) => {
     if (existingUser)
       return res.status(400).json({ message: "NID already registered" });
 
-    existingUser = await User.findOne({ tradelicense });
-    if (existingUser)
-      return res
-        .status(400)
-        .json({ message: "Trade License already registered" });
-
-    // Create new user
+    // Create new user (Password will be hashed automatically via pre("save") middleware)
     const newUser = new User({
       name,
       email,
@@ -52,8 +44,8 @@ export const registerUser = async (req, res) => {
       thana,
       address,
       tradelicense,
-      password,
-      role: role || "consumer", // Default to "user" if role is not provided
+      password, // Do not hash manually, let the middleware handle it
+      role: role || "consumer",
     });
 
     await newUser.save();
@@ -95,21 +87,7 @@ export const loginUser = async (req, res) => {
       { expiresIn: "30d" }
     );
 
-    // Define role-based dashboard URLs
-    const dashboardUrls = {
-      admin: "/admin-dashboard",
-      consumer: "/consumer-dashboard",
-      producer: "/producer-dashboard",
-      supersaler: "/supersaler-dashboard",
-      wholesaler: "/wholesaler-dashboard",
-      default: "/dashboard", // Default fallback
-    };
-
-    // Get the user's dashboard URL, fallback to default if role isn't mapped
-    const dashboardUrl = dashboardUrls[user.role] || dashboardUrls.default;
-
-    // Return success response with token, user data, and dashboard URL
-    res.json({ message: "Login successful", token, user, dashboardUrl });
+    res.json({ message: "Login successful", token, user });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
