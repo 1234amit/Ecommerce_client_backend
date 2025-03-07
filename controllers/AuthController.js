@@ -19,6 +19,7 @@ export const registerUser = async (req, res) => {
       address,
       tradelicense,
       password,
+      role, // Adding role from request body (optional)
     } = req.body;
 
     // Check if user already exists
@@ -52,6 +53,7 @@ export const registerUser = async (req, res) => {
       address,
       tradelicense,
       password,
+      role: role || "consumer", // Default to "user" if role is not provided
     });
 
     await newUser.save();
@@ -65,21 +67,62 @@ export const registerUser = async (req, res) => {
 // User Login
 export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { phone, password } = req.body;
 
-    const user = await User.findOne({ email });
-    if (!user)
-      return res.status(400).json({ message: "Invalid Email or Password" });
+    // Check if phone and password are provided
+    if (!phone || !password) {
+      return res
+        .status(400)
+        .json({ message: "Phone and Password are required" });
+    }
 
+    // Find user by phone number
+    const user = await User.findOne({ phone });
+    if (!user) {
+      return res.status(400).json({ message: "Invalid Phone or Password" });
+    }
+
+    // Compare provided password with stored hashed password
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(400).json({ message: "Invalid Email or Password" });
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid Phone or Password" });
+    }
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1d",
-    });
+    // Generate JWT token with user ID and role
+    const token = jwt.sign(
+      { id: user._id, role: user.role }, // Include role in JWT
+      process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
 
-    res.json({ message: "Login successful", token, user });
+    // Define role-based dashboard URLs
+    const dashboardUrls = {
+      admin: "/admin-dashboard",
+      consumer: "/consumer-dashboard",
+      producer: "/producer-dashboard",
+      supersaler: "/supersaler-dashboard",
+      wholesaler: "/wholesaler-dashboard",
+      default: "/dashboard", // Default fallback
+    };
+
+    // Get the user's dashboard URL, fallback to default if role isn't mapped
+    const dashboardUrl = dashboardUrls[user.role] || dashboardUrls.default;
+
+    // Return success response with token, user data, and dashboard URL
+    res.json({ message: "Login successful", token, user, dashboardUrl });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const logoutUser = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (token) {
+      blacklistedTokens.add(token); // Add token to blacklist
+    }
+
+    res.json({ message: "Logout successful" });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }

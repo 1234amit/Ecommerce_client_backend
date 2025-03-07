@@ -4,6 +4,7 @@ import connectDB from "./config/db.js";
 // import userRoutes from "./routes/userRoutes.js";
 import AuthRoutes from "./routes/AuthRoutes.js";
 import bodyParser from "body-parser";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -16,6 +17,7 @@ app.use(bodyParser.json());
 
 // Routes
 app.use("/api/v1", AuthRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes);
 
 // Routes
 // app.use("/api/users", userRoutes);
