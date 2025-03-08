@@ -5,8 +5,11 @@ import connectDB from "./config/db.js";
 import AuthRoutes from "./routes/AuthRoutes.js";
 import bodyParser from "body-parser";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
-import adminRoutes from "./routes/addminRoutes.js";
+import adminRoutes from "./routes/admin/adminRoutes.js";
 import consumerRoutes from "./routes/consumer/consumerRoutes.js";
+import producerRoutes from "./routes/producer/producerRoutes.js";
+import supersalerRoutes from "./routes/superseller/supersalerRoutes.js";
+import wholesalerRoutes from "./routes/wholeseller/wholesalerRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -22,6 +25,9 @@ app.use("/api/v1", AuthRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/consumer", consumerRoutes);
+app.use("/api/v1/producer", producerRoutes);
+app.use("/api/v1/superseller", supersalerRoutes);
+app.use("/api/v1/wholeseller", wholesalerRoutes);
 
 // Routes
 // app.use("/api/users", userRoutes);
