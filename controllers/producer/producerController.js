@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import User from "../../models/User.js";
+import Product from "../../models/Product.js";
 
 // Get Producer Profile
 export const getProducerProfile = async (req, res) => {
@@ -84,6 +85,85 @@ export const changeProducerPassword = async (req, res) => {
     await producer.save();
 
     res.json({ message: "Password changed successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Add Product by Producer
+export const addProduct = async (req, res) => {
+  try {
+    const producerId = req.user.id;
+
+    const {
+      productName,
+      quantity,
+      price,
+      description,
+      category,
+      addToSellPost,
+    } = req.body;
+    const image = req.file ? req.file.path : null; // Image upload handling
+
+    if (!image) {
+      return res.status(400).json({ message: "Product image is required" });
+    }
+
+    // Create new product
+    const newProduct = new Product({
+      producer: producerId,
+      image,
+      productName,
+      quantity,
+      price,
+      description,
+      category,
+      addToSellPost,
+    });
+
+    await newProduct.save();
+
+    res
+      .status(201)
+      .json({ message: "Product added successfully", product: newProduct });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Get All Products for Producer
+export const getAllProducts = async (req, res) => {
+  try {
+    const producerId = req.user.id; // Get producer ID from token
+
+    // Find all products that belong to this producer
+    const products = await Product.find({ producer: producerId });
+
+    res.json({ message: "Products fetched successfully", products });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Get Single Product by ID for Producer
+export const getProductById = async (req, res) => {
+  try {
+    const producerId = req.user.id; // Get producer ID from token
+    const { productId } = req.params;
+
+    // Find product by ID and ensure it belongs to the producer
+    const product = await Product.findOne({
+      _id: productId,
+      producer: producerId,
+    });
+
+    if (!product) {
+      return res
+        .status(404)
+        .json({ message: "Product not found or not authorized" });
+    }
+
+    res.json({ message: "Product fetched successfully", product });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
