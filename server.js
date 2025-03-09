@@ -10,15 +10,24 @@ import consumerRoutes from "./routes/consumer/consumerRoutes.js";
 import producerRoutes from "./routes/producer/producerRoutes.js";
 import supersalerRoutes from "./routes/superseller/supersalerRoutes.js";
 import wholesalerRoutes from "./routes/wholeseller/wholesalerRoutes.js";
+import cors from "cors";
 
 dotenv.config();
 connectDB();
 
 const app = express();
-app.use(express.json());
 
 // Middleware
 app.use(bodyParser.json());
+
+app.use(
+  cors({
+    origin: "http://localhost:3000", // Allow requests from frontend
+    credentials: true,
+  })
+);
+
+app.use(express.json());
 
 // Routes
 app.use("/api/v1", AuthRoutes);
