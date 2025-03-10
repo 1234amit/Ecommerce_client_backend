@@ -11,6 +11,7 @@ import producerRoutes from "./routes/producer/producerRoutes.js";
 import supersalerRoutes from "./routes/superseller/supersalerRoutes.js";
 import wholesalerRoutes from "./routes/wholeseller/wholesalerRoutes.js";
 import cors from "cors";
+import helmet from "helmet";
 
 dotenv.config();
 connectDB();
@@ -28,6 +29,19 @@ app.use(
 );
 
 app.use(express.json());
+
+// ✅ Set Content Security Policy (CSP) using Helmet
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        connectSrc: ["'self'", "http://localhost:5000"], // Allow API requests
+      },
+    },
+  })
+);
 
 // Routes
 app.use("/api/v1", AuthRoutes);
