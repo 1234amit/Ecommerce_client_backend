@@ -20,6 +20,18 @@ import {
   deleteSuperSalerById,
   getPendingSuperSalers,
   approveSuperSaler,
+  getAllWholesalers,
+  getWholesalerById,
+  searchWholesaler,
+  deleteWholesalerById,
+  getPendingWholesalers,
+  approveWholesaler,
+  getAllProducers,
+  getProducerById,
+  deleteProducerById,
+  searchProducer,
+  getPendingProducers,
+  approveProducer,
 } from "../../controllers/admin/adminController.js";
 
 const router = express.Router();
@@ -94,5 +106,47 @@ router.put(
   verifyAdmin,
   approveSuperSaler
 );
+
+router.get("/all-wholesalers", verifyToken, verifyAdmin, getAllWholesalers);
+router.get(
+  "/all-wholesalers/search",
+  verifyToken,
+  verifyAdmin,
+  searchWholesaler
+);
+router.get("/all-wholesalers/:id", verifyToken, verifyAdmin, getWholesalerById);
+router.delete(
+  "/all-wholesalers/:id",
+  verifyToken,
+  verifyAdmin,
+  deleteWholesalerById
+);
+
+router.get(
+  "/pending-wholesalers",
+  verifyToken,
+  verifyAdmin,
+  getPendingWholesalers
+);
+
+router.put(
+  "/approve-wholesaler/:id",
+  verifyToken,
+  verifyAdmin,
+  approveWholesaler
+);
+
+router.get("/all-producer", verifyToken, verifyAdmin, getAllProducers);
+router.get("/all-producer/search", verifyToken, verifyAdmin, searchProducer);
+router.delete(
+  "/all-producer/:id",
+  verifyToken,
+  verifyAdmin,
+  deleteProducerById
+);
+router.get("/all-producer/:id", verifyToken, verifyAdmin, getProducerById);
+
+router.get("/pending-producers", verifyToken, verifyAdmin, getPendingProducers);
+router.put("/approve-producer/:id", verifyToken, verifyAdmin, approveProducer);
 
 export default router;

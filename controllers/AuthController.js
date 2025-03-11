@@ -84,7 +84,19 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: "NID already registered" });
 
     // Set status as "pending" if registering as SuperSaler
-    const status = role === "supersaler" ? "pending" : "approved";
+    // const status = role === "supersaler" ? "pending" : "approved";
+    // Define roles that require admin approval
+    const rolesRequiringApproval = [
+      "supersaler",
+      "wholesaler",
+      "producer",
+      // "consumer",
+    ];
+
+    // Set status as "pending" if the role requires approval
+    const status = rolesRequiringApproval.includes(role)
+      ? "pending"
+      : "approved";
 
     // Create new user
     const newUser = new User({
@@ -166,7 +178,13 @@ export const loginUser = async (req, res) => {
     }
 
     // Prevent login if user is a SuperSaler and not yet approved
-    if (user.role === "supersaler" && user.status !== "approved") {
+    // if (user.role === "supersaler" && user.status !== "approved") {
+    //   return res
+    //     .status(403)
+    //     .json({ message: "Admin approval required for login" });
+    // }
+    // Prevent login if user is pending approval
+    if (user.status !== "approved") {
       return res
         .status(403)
         .json({ message: "Admin approval required for login" });
