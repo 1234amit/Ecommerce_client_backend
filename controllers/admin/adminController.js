@@ -131,3 +131,261 @@ export const deleteUserById = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+// ✅ Get All Consumers (Admin can see all, Consumers see only themselves)
+export const getAllConsumers = async (req, res) => {
+  try {
+    if (req.user.role === "admin") {
+      // Admin can see all consumers
+      const consumers = await User.find({ role: "consumer" }).select(
+        "-password"
+      );
+      return res.json({
+        message: "All consumers fetched successfully",
+        consumers,
+      });
+    } else if (req.user.role === "consumer") {
+      // Consumers can only see their own data
+      const consumer = await User.findById(req.user.id).select("-password");
+      return res.json({
+        message: "Your profile fetched successfully",
+        consumer,
+      });
+    } else {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ✅ Get Consumer by ID (Admin Only)
+export const getConsumerById = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const userId = req.params.id;
+    const consumer = await User.findOne({
+      _id: userId,
+      role: "consumer",
+    }).select("-password");
+
+    if (!consumer) {
+      return res.status(404).json({ message: "Consumer not found" });
+    }
+
+    res.json({ message: "Consumer details fetched successfully", consumer });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ✅ Delete Consumer by ID (Admin Only)
+export const deleteConsumerById = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const userId = req.params.id;
+    const consumer = await User.findOne({ _id: userId, role: "consumer" });
+
+    if (!consumer) {
+      return res.status(404).json({ message: "Consumer not found" });
+    }
+
+    await User.findByIdAndDelete(userId);
+    res.json({ message: "Consumer deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ✅ Search Consumer (Admin can search all consumers, Consumers can search themselves)
+export const searchConsumer = async (req, res) => {
+  try {
+    const { query } = req.query; // Extract search query from URL
+
+    if (!query) {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+
+    let searchCriteria = {
+      role: "consumer",
+      $or: [
+        { name: { $regex: query, $options: "i" } },
+        { email: { $regex: query, $options: "i" } },
+        { phone: { $regex: query, $options: "i" } },
+        { nid: { $regex: query, $options: "i" } },
+      ],
+    };
+
+    if (req.user.role === "consumer") {
+      // Consumers can only search their own data
+      searchCriteria._id = req.user.id;
+    }
+
+    const consumers = await User.find(searchCriteria).select("-password");
+
+    if (consumers.length === 0) {
+      return res.status(404).json({ message: "No consumers found" });
+    }
+
+    res.json({ message: "Consumers fetched successfully", consumers });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ✅ Get All SuperSalers (Admin Only)
+export const getAllSuperSalers = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const superSalers = await User.find({ role: "supersaler" }).select(
+      "-password"
+    );
+
+    res.json({ message: "All SuperSalers fetched successfully", superSalers });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ✅ Get a Single SuperSaler by ID (Admin Only)
+export const getSuperSalerById = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const userId = req.params.id;
+    const superSaler = await User.findOne({
+      _id: userId,
+      role: "supersaler",
+    }).select("-password");
+
+    if (!superSaler) {
+      return res.status(404).json({ message: "SuperSaler not found" });
+    }
+
+    res.json({
+      message: "SuperSaler details fetched successfully",
+      superSaler,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const searchSuperSaler = async (req, res) => {
+  try {
+    const { query } = req.query; // Extract search query from URL
+
+    if (!query) {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const searchCriteria = {
+      role: "supersaler",
+      $or: [
+        { name: new RegExp(query, "i") },
+        { email: new RegExp(query, "i") },
+        { phone: new RegExp(query, "i") },
+        { nid: new RegExp(query, "i") },
+      ],
+    };
+
+    const superSalers = await User.find(searchCriteria).select("-password");
+
+    if (superSalers.length === 0) {
+      return res.status(404).json({ message: "No SuperSalers found" });
+    }
+
+    res.json({ message: "SuperSalers fetched successfully", superSalers });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ✅ Delete a SuperSaler by ID (Admin Only)
+export const deleteSuperSalerById = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const userId = req.params.id;
+    const superSaler = await User.findOne({ _id: userId, role: "supersaler" });
+
+    if (!superSaler) {
+      return res.status(404).json({ message: "SuperSaler not found" });
+    }
+
+    await User.findByIdAndDelete(userId);
+    res.json({ message: "SuperSaler deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const getPendingSuperSalers = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    // Fetch only SuperSalers whose status is "pending"
+    const pendingSuperSalers = await User.find({
+      role: "supersaler",
+      status: "pending",
+    }).select("-password");
+
+    if (!pendingSuperSalers.length) {
+      return res.status(404).json({ message: "No pending SuperSalers found" });
+    }
+
+    res.json({
+      message: "Pending SuperSalers fetched successfully",
+      pendingSuperSalers,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const approveSuperSaler = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const userId = req.params.id;
+    const superSaler = await User.findOne({
+      _id: userId,
+      role: "supersaler",
+      status: "pending",
+    });
+
+    if (!superSaler) {
+      return res
+        .status(404)
+        .json({ message: "SuperSaler not found or already approved" });
+    }
+
+    superSaler.status = "approved";
+    await superSaler.save();
+
+    res.json({ message: "SuperSaler approved successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};

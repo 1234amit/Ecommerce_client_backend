@@ -56,6 +56,11 @@ const userSchema = new mongoose.Schema(
       enum: ["admin", "consumer", "producer", "supersaler", "wholesaler"],
       default: "consumer", // Default role is "user"
     },
+    status: {
+      type: String,
+      enum: ["pending", "approved"],
+      default: "approved", // Default for non-supersalers
+    },
   },
   { timestamps: true }
 );
