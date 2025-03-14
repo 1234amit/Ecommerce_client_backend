@@ -23,7 +23,8 @@ app.use(bodyParser.json());
 
 app.use(
   cors({
-    origin: "http://localhost:5173", // Allow requests from frontend
+    origin:
+      "http://localhost:5173, http://localhost:5174, http://localhost:3000", // Allow requests from frontend
     credentials: true,
   })
 );
