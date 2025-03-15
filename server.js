@@ -24,7 +24,7 @@ app.use(bodyParser.json());
 app.use(
   cors({
     origin:
-      "http://localhost:5173, http://localhost:5174, http://localhost:3000, https://krishi-ghar.vercel.app, https://krishi-ghar-admin.vercel.app", // Allow requests from frontend
+      ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "https://krishi-ghar.vercel.app", "https://krishi-ghar-admin.vercel.app"], // Allow requests from frontend
     credentials: true,
   })
 );
