@@ -12,6 +12,8 @@ import supersalerRoutes from "./routes/superseller/supersalerRoutes.js";
 import wholesalerRoutes from "./routes/wholeseller/wholesalerRoutes.js";
 import cors from "cors";
 import helmet from "helmet";
+import { Server } from "socket.io";
+import http from "http";
 
 dotenv.config();
 connectDB();
@@ -54,6 +56,14 @@ app.use(cors({ origin: "*", credentials: true }));
 //   })
 // );
 
+// create http server into socket io
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*", // Allow frontend to connect
+  },
+});
+
 app.use(express.json());
 
 // ✅ Set Content Security Policy (CSP) using Helmet
@@ -70,17 +80,6 @@ app.use(express.json());
 // );
 
 
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        connectSrc: ["'self'", "*"], // Allow all API requests (for debugging)
-      },
-    },
-  })
-);
 
 // Routes
 app.use("/api/v1", AuthRoutes);
