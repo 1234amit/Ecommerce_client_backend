@@ -21,13 +21,34 @@ const app = express();
 // Middleware
 app.use(bodyParser.json());
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:3000",
+  "https://krishi-ghar.vercel.app",
+  "https://krishi-ghar-admin.vercel.app"
+];
+
 app.use(
   cors({
-    origin:
-      ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "https://krishi-ghar.vercel.app", "https://krishi-ghar-admin.vercel.app"], // Allow requests from frontend
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
+
+// app.use(
+//   cors({
+//     origin:
+//       ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "https://krishi-ghar.vercel.app", "https://krishi-ghar-admin.vercel.app"], // Allow requests from frontend
+//     credentials: true,
+//   })
+// );
 
 app.use(express.json());
 
