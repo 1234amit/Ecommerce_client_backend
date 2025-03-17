@@ -57,13 +57,26 @@ app.use(cors({ origin: "*", credentials: true }));
 app.use(express.json());
 
 // ✅ Set Content Security Policy (CSP) using Helmet
+// app.use(
+//   helmet({
+//     contentSecurityPolicy: {
+//       directives: {
+//         defaultSrc: ["'self'"],
+//         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+//         connectSrc: ["'self'", "http://localhost:5173"], // Allow API requests
+//       },
+//     },
+//   })
+// );
+
+
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        connectSrc: ["'self'", "http://localhost:5000"], // Allow API requests
+        connectSrc: ["'self'", "*"], // Allow all API requests (for debugging)
       },
     },
   })
