@@ -79,7 +79,12 @@ app.use(express.json());
 //   })
 // );
 
-
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "http://localhost:5174","http://localhost:3000", "https://krishi-ghar.vercel.app", "https://krishi-ghar-admin.vercel.app", "https://krishi-test-frontend.vercel.app/"],
+    credentials: true, // Allow cookies
+  })
+);
 
 // Routes
 app.use("/api/v1", AuthRoutes);
