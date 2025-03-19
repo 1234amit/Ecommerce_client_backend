@@ -23,38 +23,6 @@ const app = express();
 // Middleware
 app.use(bodyParser.json());
 
-// const allowedOrigins = [
-//   "http://localhost:5173",
-//   "http://localhost:5174",
-//   "http://localhost:3000",
-//   "https://krishi-ghar.vercel.app",
-//   "https://krishi-ghar-admin.vercel.app",
-//   "https://krishi-test-frontend.vercel.app",
-// ];
-
-// app.use(
-//   cors({
-//     origin: (origin, callback) => {
-//       if (!origin || allowedOrigins.includes(origin)) {
-//         callback(null, true);
-//       } else {
-//         callback(new Error("Not allowed by CORS"));
-//       }
-//     },
-//     credentials: true,
-//   })
-// );
-
-// /app.use(cors({ origin: "*", credentials: true }));
-
-
-// app.use(
-//   cors({
-//     origin:
-//       ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "https://krishi-ghar.vercel.app", "https://krishi-ghar-admin.vercel.app"], // Allow requests from frontend
-//     credentials: true,
-//   })
-// );
 
 // create http server into socket io
 const server = http.createServer(app);
@@ -66,25 +34,6 @@ const io = new Server(server, {
 
 app.use(express.json());
 
-// ✅ Set Content Security Policy (CSP) using Helmet
-// app.use(
-//   helmet({
-//     contentSecurityPolicy: {
-//       directives: {
-//         defaultSrc: ["'self'"],
-//         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-//         connectSrc: ["'self'", "http://localhost:5173"], // Allow API requests
-//       },
-//     },
-//   })
-// );
-
-// app.use(
-//   cors({
-//     origin: ["http://localhost:5173", "http://localhost:5174","http://localhost:3000", "https://krishi-ghar.vercel.app", "https://krishi-ghar-admin.vercel.app", "https://krishi-test-frontend.vercel.app/"],
-//     credentials: true, // Allow cookies
-//   })
-// );
 
 app.use(
   cors({
