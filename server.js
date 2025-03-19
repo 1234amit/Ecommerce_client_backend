@@ -44,6 +44,7 @@ app.use(
       "https://krishi-ghar.vercel.app",
       "https://krishi-ghar-admin.vercel.app",
       "https://krishi-test-frontend.vercel.app",
+      "https://ecom-krishi-test.vercel.app"
     ],
     credentials: true, // Allow cookies
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
