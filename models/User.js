@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema(
       //   required: true,
       unique: true,
     },
-    nid: { type: String, unique: true, sparse: true },
+    nid: { type: String, sparse: true, unique: true },
     division: {
       type: String,
       //   required: true,

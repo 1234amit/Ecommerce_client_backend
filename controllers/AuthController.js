@@ -6,66 +6,6 @@ import dotenv from "dotenv";
 dotenv.config();
 
 
-// export const registerUser = async (req, res) => {
-//   try {
-//     const {
-//       name,
-//       email,
-//       phone,
-//       nid,
-//       division,
-//       district,
-//       thana,
-//       address,
-//       tradelicense,
-//       password,
-//       role, 
-//     } = req.body;
-
-//     let existingUser;
-
-//     existingUser = await User.findOne({ nid });
-//     if (existingUser)
-//       return res.status(400).json({ message: "NID already registered" });
-
-   
-//     const rolesRequiringApproval = [
-//       "supersaler",
-//       "wholesaler",
-//       "producer",
-//     ];
-
-//     const status = rolesRequiringApproval.includes(role)
-//       ? "pending"
-//       : "approved";
-
-//     const newUser = new User({
-//       name,
-//       email,
-//       phone,
-//       nid,
-//       division,
-//       district,
-//       thana,
-//       address,
-//       tradelicense,
-//       password,
-//       role: role || "consumer",
-//       status, 
-//     });
-
-//     await newUser.save();
-
-//     res.status(201).json({
-//       message: "Registration successful, pending admin approval",
-//       user: newUser,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: "Server error", error: error.message });
-//   }
-// };
-
-
 export const registerUser = async (req, res) => {
   try {
     const {
@@ -79,69 +19,131 @@ export const registerUser = async (req, res) => {
       address,
       tradelicense,
       password,
-      role,
+      role, 
     } = req.body;
 
-    // Set default role to "consumer" if not provided
-    const userRole = role || "consumer";
+    let existingUser;
 
-    // Validate required fields for non-consumers
-    if (
-      userRole !== "consumer" &&
-      (!name || !nid || !division || !district || !thana || !address || !tradelicense)
-    ) {
-      return res.status(400).json({ message: "All fields are required for non-consumers" });
+    if (nid) {
+      existingUser = await User.findOne({ nid });
+      if (existingUser)
+        return res.status(400).json({ message: "NID already registered" });
     }
 
-    // Check if email or phone already exists
-    let existingUser = await User.findOne({ $or: [{ email }, { phone }] });
-    if (existingUser) {
-      return res.status(400).json({ message: "Email or phone already registered" });
-    }
+   
+    const rolesRequiringApproval = [
+      "supersaler",
+      "wholesaler",
+      "producer",
+    ];
 
-    // Define roles that require admin approval
-    const rolesRequiringApproval = ["supersaler", "wholesaler", "producer"];
-    const status = rolesRequiringApproval.includes(userRole) ? "pending" : "approved";
+    const status = rolesRequiringApproval.includes(role)
+      ? "pending"
+      : "approved";
 
-    // Hash password before saving
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user object dynamically to exclude `nid` for consumers
-    const newUserData = {
+    const newUser = new User({
+      name,
       email,
       phone,
-      password: hashedPassword,
+      nid,
+      division,
+      district,
+      thana,
+      address,
       tradelicense,
-      role: userRole,
-      status,
-    };
+      password,
+      role: role || "consumer",
+      status, 
+    });
 
-    if (userRole !== "consumer") {
-      newUserData.name = name;
-      newUserData.nid = nid;
-      newUserData.division = division;
-      newUserData.district = district;
-      newUserData.thana = thana;
-      newUserData.address = address;
-    }
-
-    // **Ensure `nid` is removed for consumers to avoid `null` conflicts**
-    if (userRole === "consumer") {
-      delete newUserData.nid;
-    }
-
-    // Create and save user
-    const newUser = new User(newUserData);
     await newUser.save();
 
     res.status(201).json({
-      message: `Registration successful${status === "pending" ? ", pending admin approval" : ""}`,
+      message: "Registration successful, pending admin approval",
       user: newUser,
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+
+// export const registerUser = async (req, res) => {
+//   try {
+//     const {
+//       name,
+//       email,
+//       phone,
+//       nid,
+//       division,
+//       district,
+//       thana,
+//       address,
+//       tradelicense,
+//       password,
+//       role,
+//     } = req.body;
+
+//     // Set default role to "consumer" if not provided
+//     const userRole = role || "consumer";
+
+//     // Validate required fields for non-consumers
+//     if (
+//       userRole !== "consumer" &&
+//       (!name || !nid || !division || !district || !thana || !address || !tradelicense)
+//     ) {
+//       return res.status(400).json({ message: "All fields are required for non-consumers" });
+//     }
+
+//     // Check if email or phone already exists
+//     let existingUser = await User.findOne({ $or: [{ email }, { phone }] });
+//     if (existingUser) {
+//       return res.status(400).json({ message: "Email or phone already registered" });
+//     }
+
+//     // Define roles that require admin approval
+//     const rolesRequiringApproval = ["supersaler", "wholesaler", "producer"];
+//     const status = rolesRequiringApproval.includes(userRole) ? "pending" : "approved";
+
+//     // Hash password before saving
+//     const hashedPassword = await bcrypt.hash(password, 10);
+
+//     // Create user object dynamically to exclude `nid` for consumers
+//     const newUserData = {
+//       email,
+//       phone,
+//       password: hashedPassword,
+//       tradelicense,
+//       role: userRole,
+//       status,
+//     };
+
+//     if (userRole !== "consumer") {
+//       newUserData.name = name;
+//       newUserData.nid = nid;
+//       newUserData.division = division;
+//       newUserData.district = district;
+//       newUserData.thana = thana;
+//       newUserData.address = address;
+//     }
+
+//     // **Ensure `nid` is removed for consumers to avoid `null` conflicts**
+//     if (userRole === "consumer") {
+//       delete newUserData.nid;
+//     }
+
+//     // Create and save user
+//     const newUser = new User(newUserData);
+//     await newUser.save();
+
+//     res.status(201).json({
+//       message: `Registration successful${status === "pending" ? ", pending admin approval" : ""}`,
+//       user: newUser,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
 
 
 
