@@ -87,10 +87,26 @@ export const changeAdminPassword = async (req, res) => {
 };
 
 // Get All Users (Admin Only)
+// export const getAllUsers = async (req, res) => {
+//   try {
+//     const users = await User.find({}, "-password"); // Exclude password field for security
+//     res.json({ message: "All users fetched successfully", users });
+//   } catch (error) {
+//     res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
+
+// Get All Users (Admin Only)
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({}, "-password"); // Exclude password field for security
-    res.json({ message: "All users fetched successfully", users });
+    const users = await User.find({}, "-password").select("+lastLogin"); // Include lastLogin field
+    res.json({ 
+      message: "All users fetched successfully", 
+      users: users.map(user => ({
+        ...user.toObject(),
+        lastLogin: user.lastLogin || "Never logged in" // Format last login time
+      }))
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }

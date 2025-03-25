@@ -149,6 +149,53 @@ export const registerUser = async (req, res) => {
 
 
 
+// export const loginUser = async (req, res) => {
+//   try {
+//     const { phone, password } = req.body;
+
+//     if (!phone || !password) {
+//       return res
+//         .status(400)
+//         .json({ message: "Phone and Password are required" });
+//     }
+
+//     const user = await User.findOne({ phone });
+//     if (!user) {
+//       return res.status(400).json({ message: "Invalid Phone or Password" });
+//     }
+
+//     // Prevent login if user is a SuperSaler and not yet approved
+//     // if (user.role === "supersaler" && user.status !== "approved") {
+//     //   return res
+//     //     .status(403)
+//     //     .json({ message: "Admin approval required for login" });
+//     // }
+//     // Prevent login if user is pending approval
+//     if (user.status !== "approved") {
+//       return res
+//         .status(403)
+//         .json({ message: "Admin approval required for login" });
+//     }
+
+//     // Check password
+//     const isMatch = await bcrypt.compare(password, user.password);
+//     if (!isMatch) {
+//       return res.status(400).json({ message: "Invalid Phone or Password" });
+//     }
+
+//     // Generate JWT token
+//     const token = jwt.sign(
+//       { id: user._id, role: user.role },
+//       process.env.jwt_secret,
+//       { expiresIn: "30d" }
+//     );
+
+//     res.json({ message: "Login successful", token, user });
+//   } catch (error) {
+//     res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
+
 export const loginUser = async (req, res) => {
   try {
     const { phone, password } = req.body;
@@ -164,12 +211,6 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid Phone or Password" });
     }
 
-    // Prevent login if user is a SuperSaler and not yet approved
-    // if (user.role === "supersaler" && user.status !== "approved") {
-    //   return res
-    //     .status(403)
-    //     .json({ message: "Admin approval required for login" });
-    // }
     // Prevent login if user is pending approval
     if (user.status !== "approved") {
       return res
@@ -182,6 +223,10 @@ export const loginUser = async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid Phone or Password" });
     }
+
+    // Update last login time
+    user.lastLogin = new Date();
+    await user.save();
 
     // Generate JWT token
     const token = jwt.sign(

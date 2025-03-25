@@ -57,6 +57,11 @@ const userSchema = new mongoose.Schema(
       enum: ["pending", "approved"],
       default: "approved", // Default for non-supersalers
     },
+
+    lastLogin: {
+      type: Date,
+      default: null
+    }
   },
   { timestamps: true }
 );
