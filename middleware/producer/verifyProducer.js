@@ -11,7 +11,7 @@ export const verifyProducer = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.jwt_secret);
     req.user = decoded; // Attach user details to request object
     next();
   } catch (error) {

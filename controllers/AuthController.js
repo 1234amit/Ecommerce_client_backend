@@ -67,7 +67,6 @@ export const registerUser = async (req, res) => {
   }
 };
 
-
 export const registerConsumer = async (req, res) => {
   try {
     const { name, phone, role = "consumer", password, email, nid, division, district, thana, address, tradelicense } = req.body;
@@ -138,8 +137,6 @@ export const registerConsumer = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
-
 
 export const loginUser = async (req, res) => {
   try {
