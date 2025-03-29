@@ -9,19 +9,20 @@ const userSchema = new mongoose.Schema(
       //   required: true,
       trim: true,
     },
-    email: {
-      type: String,
-      //   required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-    },
+    // email: {
+    //   type: String,
+    //   //   required: true,
+    //   unique: true,
+    //   lowercase: true,
+    //   trim: true,
+    // },
     phone: {
       type: String,
       //   required: true,
       unique: true,
     },
-    nid: { type: String, sparse: true, unique: true },
+    email: { type: String, unique: true, sparse: true }, // Allows multiple nulls
+  nid: { type: String, unique: true, sparse: true },
     division: {
       type: String,
       //   required: true,
@@ -40,8 +41,8 @@ const userSchema = new mongoose.Schema(
     },
     tradelicense: {
       type: String,
-      //   required: true,
       unique: true,
+      sparse: true,
     },
     password: {
       type: String,

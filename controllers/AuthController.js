@@ -68,133 +68,78 @@ export const registerUser = async (req, res) => {
 };
 
 
-// export const registerUser = async (req, res) => {
-//   try {
-//     const {
-//       name,
-//       email,
-//       phone,
-//       nid,
-//       division,
-//       district,
-//       thana,
-//       address,
-//       tradelicense,
-//       password,
-//       role,
-//     } = req.body;
+export const registerConsumer = async (req, res) => {
+  try {
+    const { name, phone, role = "consumer", password, email, nid, division, district, thana, address, tradelicense } = req.body;
 
-//     // Set default role to "consumer" if not provided
-//     const userRole = role || "consumer";
+    // Ensure required fields for consumer
+    if (role === "consumer" && (!name || !phone || !password)) {
+      return res.status(400).json({ message: "Name, phone, and password are required for consumers" });
+    }
 
-//     // Validate required fields for non-consumers
-//     if (
-//       userRole !== "consumer" &&
-//       (!name || !nid || !division || !district || !thana || !address || !tradelicense)
-//     ) {
-//       return res.status(400).json({ message: "All fields are required for non-consumers" });
-//     }
+    // Ensure required fields for non-consumers
+    if (role !== "consumer" && (!name || !nid || !division || !district || !thana || !address || !phone || !password)) {
+      return res.status(400).json({ message: "All fields are required for non-consumers" });
+    }
 
-//     // Check if email or phone already exists
-//     let existingUser = await User.findOne({ $or: [{ email }, { phone }] });
-//     if (existingUser) {
-//       return res.status(400).json({ message: "Email or phone already registered" });
-//     }
+    // Check if phone is already registered
+    let existingUser = await User.findOne({ phone });
+    if (existingUser) {
+      return res.status(400).json({ message: "Phone number already registered" });
+    }
 
-//     // Define roles that require admin approval
-//     const rolesRequiringApproval = ["supersaler", "wholesaler", "producer"];
-//     const status = rolesRequiringApproval.includes(userRole) ? "pending" : "approved";
+    // Check if email or NID already exists (if provided)
+    if (email || nid) {
+      let existingUserByEmailOrNid = await User.findOne({ $or: [{ email }, { nid }] });
+      if (existingUserByEmailOrNid) {
+        return res.status(400).json({ message: "Email or NID already registered" });
+      }
+    }
 
-//     // Hash password before saving
-//     const hashedPassword = await bcrypt.hash(password, 10);
+    // Ensure unique trade license (if provided)
+    if (tradelicense) {
+      let existingTradeLicense = await User.findOne({ tradelicense });
+      if (existingTradeLicense) {
+        return res.status(400).json({ message: "Trade license already registered" });
+      }
+    }
 
-//     // Create user object dynamically to exclude `nid` for consumers
-//     const newUserData = {
-//       email,
-//       phone,
-//       password: hashedPassword,
-//       tradelicense,
-//       role: userRole,
-//       status,
-//     };
+    // Define roles that require admin approval
+    const rolesRequiringApproval = ["supersaler", "wholesaler", "producer"];
+    const status = rolesRequiringApproval.includes(role) ? "pending" : "approved";
 
-//     if (userRole !== "consumer") {
-//       newUserData.name = name;
-//       newUserData.nid = nid;
-//       newUserData.division = division;
-//       newUserData.district = district;
-//       newUserData.thana = thana;
-//       newUserData.address = address;
-//     }
+    // Hash password before saving
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-//     // **Ensure `nid` is removed for consumers to avoid `null` conflicts**
-//     if (userRole === "consumer") {
-//       delete newUserData.nid;
-//     }
+    // Create new user object
+    const newUser = new User({
+      name,
+      phone,
+      role,
+      password,
+      email:role !== "consumer" ? email : undefined,
+      nid: role !== "consumer" ? nid : undefined,  // Use undefined instead of null
+      division: role !== "consumer" ? division : undefined,
+      district: role !== "consumer" ? district : undefined,
+      thana: role !== "consumer" ? thana : undefined,
+      address: role !== "consumer" ? address : undefined,
+      tradelicense: role !== "consumer" ? tradelicense : undefined,
+      status,
+    });
+    
 
-//     // Create and save user
-//     const newUser = new User(newUserData);
-//     await newUser.save();
+    await newUser.save();
 
-//     res.status(201).json({
-//       message: `Registration successful${status === "pending" ? ", pending admin approval" : ""}`,
-//       user: newUser,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: "Server error", error: error.message });
-//   }
-// };
+    res.status(201).json({
+      message: `Registration successful${status === "pending" ? ", pending admin approval" : ""}`,
+      user: newUser,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
 
 
-
-
-
-// export const loginUser = async (req, res) => {
-//   try {
-//     const { phone, password } = req.body;
-
-//     if (!phone || !password) {
-//       return res
-//         .status(400)
-//         .json({ message: "Phone and Password are required" });
-//     }
-
-//     const user = await User.findOne({ phone });
-//     if (!user) {
-//       return res.status(400).json({ message: "Invalid Phone or Password" });
-//     }
-
-//     // Prevent login if user is a SuperSaler and not yet approved
-//     // if (user.role === "supersaler" && user.status !== "approved") {
-//     //   return res
-//     //     .status(403)
-//     //     .json({ message: "Admin approval required for login" });
-//     // }
-//     // Prevent login if user is pending approval
-//     if (user.status !== "approved") {
-//       return res
-//         .status(403)
-//         .json({ message: "Admin approval required for login" });
-//     }
-
-//     // Check password
-//     const isMatch = await bcrypt.compare(password, user.password);
-//     if (!isMatch) {
-//       return res.status(400).json({ message: "Invalid Phone or Password" });
-//     }
-
-//     // Generate JWT token
-//     const token = jwt.sign(
-//       { id: user._id, role: user.role },
-//       process.env.jwt_secret,
-//       { expiresIn: "30d" }
-//     );
-
-//     res.json({ message: "Login successful", token, user });
-//   } catch (error) {
-//     res.status(500).json({ message: "Server error", error: error.message });
-//   }
-// };
 
 export const loginUser = async (req, res) => {
   try {
