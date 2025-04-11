@@ -6,6 +6,67 @@ import dotenv from "dotenv";
 dotenv.config();
 
 
+// export const registerUser = async (req, res) => {
+//   try {
+//     const {
+//       name,
+//       email,
+//       phone,
+//       nid,
+//       division,
+//       district,
+//       thana,
+//       address,
+//       tradelicense,
+//       password,
+//       role, 
+//     } = req.body;
+
+//     let existingUser;
+
+//     if (nid) {
+//       existingUser = await User.findOne({ nid });
+//       if (existingUser)
+//         return res.status(400).json({ message: "NID already registered" });
+//     }
+
+   
+//     const rolesRequiringApproval = [
+//       "supersaler",
+//       "wholesaler",
+//       "producer",
+//     ];
+
+//     const status = rolesRequiringApproval.includes(role)
+//       ? "pending"
+//       : "approved";
+
+//     const newUser = new User({
+//       name,
+//       email,
+//       phone,
+//       nid,
+//       division,
+//       district,
+//       thana,
+//       address,
+//       tradelicense,
+//       password,
+//       role: role || "consumer",
+//       status, 
+//     });
+
+//     await newUser.save();
+
+//     res.status(201).json({
+//       message: "Registration successful, pending admin approval",
+//       user: newUser,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
+
 export const registerUser = async (req, res) => {
   try {
     const {
@@ -19,27 +80,11 @@ export const registerUser = async (req, res) => {
       address,
       tradelicense,
       password,
-      role, 
+      role,
     } = req.body;
 
-    let existingUser;
-
-    if (nid) {
-      existingUser = await User.findOne({ nid });
-      if (existingUser)
-        return res.status(400).json({ message: "NID already registered" });
-    }
-
-   
-    const rolesRequiringApproval = [
-      "supersaler",
-      "wholesaler",
-      "producer",
-    ];
-
-    const status = rolesRequiringApproval.includes(role)
-      ? "pending"
-      : "approved";
+    const rolesRequiringApproval = ["supersaler", "wholesaler", "producer"];
+    const status = rolesRequiringApproval.includes(role) ? "pending" : "approved";
 
     const newUser = new User({
       name,
@@ -53,7 +98,7 @@ export const registerUser = async (req, res) => {
       tradelicense,
       password,
       role: role || "consumer",
-      status, 
+      status,
     });
 
     await newUser.save();
@@ -62,10 +107,25 @@ export const registerUser = async (req, res) => {
       message: "Registration successful, pending admin approval",
       user: newUser,
     });
+
   } catch (error) {
+    // Handle MongoDB duplicate key error
+    if (error.code === 11000) {
+      const duplicateField = Object.keys(error.keyPattern)[0];
+      const duplicateValue = error.keyValue[duplicateField];
+      
+      return res.status(400).json({
+        message: `${duplicateField.charAt(0).toUpperCase() + duplicateField.slice(1)} already registered`,
+        field: duplicateField,
+        value: duplicateValue
+      });
+    }
+
+    // Other unexpected server errors
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
 
 export const registerConsumer = async (req, res) => {
   try {
