@@ -243,15 +243,41 @@ export const loginUser = async (req, res) => {
   }
 };
 
+// export const logoutUser = async (req, res) => {
+//   try {
+//     const token = req.headers.authorization?.split(" ")[1];
+//     if (token) {
+//       blacklistedTokens.add(token); // Add token to blacklist
+//     }
+
+//     res.json({ message: "Logout successful" });
+//   } catch (error) {
+//     res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
+
+// Create a temporary in-memory blacklist (not persistent across server restarts)
+export const blacklistedTokens = new Set();
+
+
 export const logoutUser = async (req, res) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
-    if (token) {
-      blacklistedTokens.add(token); // Add token to blacklist
+
+    if (!token) {
+      return res.status(400).json({ message: "Token not provided" });
     }
+
+    blacklistedTokens.add(token); // Add token to in-memory blacklist
 
     res.json({ message: "Logout successful" });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+
+
+
+
+
