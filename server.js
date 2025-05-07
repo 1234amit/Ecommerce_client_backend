@@ -60,7 +60,7 @@ app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/consumer", consumerRoutes);
 app.use("/api/v1/producer", producerRoutes);
-app.use("/api/v1/superseller", supersalerRoutes);
+app.use("/api/v1/supersaler", supersalerRoutes);
 app.use("/api/v1/wholeseller", wholesalerRoutes);
 
 // Routes
