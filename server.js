@@ -61,7 +61,7 @@ app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/consumer", consumerRoutes);
 app.use("/api/v1/producer", producerRoutes);
 app.use("/api/v1/supersaler", supersalerRoutes);
-app.use("/api/v1/wholeseller", wholesalerRoutes);
+app.use("/api/v1/wholesaler", wholesalerRoutes);
 
 // Routes
 // app.use("/api/users", userRoutes);
