@@ -42,7 +42,10 @@ router.post(
   "/add-product",
   verifyToken,
   verifyProducer,
-  upload.single("image"),
+  upload.fields([
+    { name: 'image', maxCount: 1 }, // Main image (required)
+    { name: 'secondaryImages', maxCount: 5 } // Secondary images (optional, max 5)
+  ]),
   addProduct
 );
 

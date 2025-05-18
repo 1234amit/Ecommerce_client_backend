@@ -11,6 +11,9 @@ const productSchema = new mongoose.Schema(
       type: String, // URL of the uploaded image
       required: true,
     },
+    secondaryImages: [{
+      type: String, // URLs of the uploaded secondary images
+    }],
     productName: {
       type: String,
       required: true,

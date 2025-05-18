@@ -103,7 +103,14 @@ export const addProduct = async (req, res) => {
       category,
       addToSellPost,
     } = req.body;
-    const image = req.file ? req.file.path : null; // Image upload handling
+
+    // Handle main image
+    const image = req.files['image'] ? req.files['image'][0].path : null;
+    
+    // Handle secondary images
+    const secondaryImages = req.files['secondaryImages'] 
+      ? req.files['secondaryImages'].map(file => file.path)
+      : [];
 
     if (!image) {
       return res.status(400).json({ message: "Product image is required" });
@@ -113,6 +120,7 @@ export const addProduct = async (req, res) => {
     const newProduct = new Product({
       producer: producerId,
       image,
+      secondaryImages,
       productName,
       quantity,
       price,
