@@ -6,6 +6,7 @@ import {
   getProducerProfile,
   getProductById,
   updateProducerProfile,
+  updateProductById,
 } from "../../controllers/producer/producerController.js";
 import { verifyToken } from "./../../middleware/verifyToken.js";
 import { verifyProducer } from "../../middleware/producer/verifyProducer.js";
@@ -54,5 +55,17 @@ router.get("/products", verifyToken, verifyProducer, getAllProducts);
 
 // Get Single Product by ID
 router.get("/products/:productId", verifyToken, verifyProducer, getProductById);
+
+// Update Product by ID
+router.put(
+  "/products/:productId",
+  verifyToken,
+  verifyProducer,
+  upload.fields([
+    { name: 'image', maxCount: 1 }, // Main image (optional for update)
+    { name: 'secondaryImages', maxCount: 5 } // Secondary images (optional for update)
+  ]),
+  updateProductById
+);
 
 export default router;

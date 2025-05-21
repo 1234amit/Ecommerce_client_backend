@@ -176,3 +176,61 @@ export const getProductById = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+//update all product by id 
+export const updateProductById = async (req, res) => {
+  try {
+    const producerId = req.user.id;
+    const { productId } = req.params;
+    const {
+      productName,
+      quantity,
+      price,
+      description,
+      category,
+      addToSellPost,
+    } = req.body;
+
+    // Find product and ensure it belongs to the producer
+    const product = await Product.findOne({
+      _id: productId,
+      producer: producerId,
+    });
+
+    if (!product) {
+      return res.status(404).json({ 
+        message: "Product not found or not authorized" 
+      });
+    }
+
+    // Handle main image if provided
+    if (req.files && req.files['image']) {
+      product.image = req.files['image'][0].path;
+    }
+
+    // Handle secondary images if provided
+    if (req.files && req.files['secondaryImages']) {
+      product.secondaryImages = req.files['secondaryImages'].map(file => file.path);
+    }
+
+    // Update only provided fields
+    if (productName) product.productName = productName;
+    if (quantity) product.quantity = quantity;
+    if (price) product.price = price;
+    if (description) product.description = description;
+    if (category) product.category = category;
+    if (addToSellPost !== undefined) product.addToSellPost = addToSellPost;
+
+    await product.save();
+
+    res.json({
+      message: "Product updated successfully",
+      product
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: "Server error", 
+      error: error.message 
+    });
+  }
+};
