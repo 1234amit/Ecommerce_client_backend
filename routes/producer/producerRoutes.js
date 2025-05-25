@@ -2,6 +2,7 @@ import express from "express";
 import {
   addProduct,
   changeProducerPassword,
+  deleteProductById,
   getAllProducts,
   getProducerProfile,
   getProductById,
@@ -66,6 +67,14 @@ router.put(
     { name: 'secondaryImages', maxCount: 5 } // Secondary images (optional for update)
   ]),
   updateProductById
+);
+
+// Delete Product by ID
+router.delete(
+  "/products/:productId",
+  verifyToken,
+  verifyProducer,
+  deleteProductById
 );
 
 export default router;

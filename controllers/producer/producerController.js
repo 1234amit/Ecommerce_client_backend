@@ -116,17 +116,17 @@ export const addProduct = async (req, res) => {
       return res.status(400).json({ message: "Product image is required" });
     }
 
-    // Create new product
+    // Create new product with string conversion
     const newProduct = new Product({
       producer: producerId,
-      image,
-      secondaryImages,
-      productName,
-      quantity,
-      price,
-      description,
-      category,
-      addToSellPost,
+      image: String(image),
+      secondaryImages: secondaryImages.map(img => String(img)),
+      productName: String(productName),
+      quantity: String(quantity),
+      price: String(price),
+      description: String(description),
+      category: String(category),
+      addToSellPost: String(addToSellPost),
     });
 
     await newProduct.save();
@@ -205,27 +205,59 @@ export const updateProductById = async (req, res) => {
 
     // Handle main image if provided
     if (req.files && req.files['image']) {
-      product.image = req.files['image'][0].path;
+      product.image = String(req.files['image'][0].path);
     }
 
     // Handle secondary images if provided
     if (req.files && req.files['secondaryImages']) {
-      product.secondaryImages = req.files['secondaryImages'].map(file => file.path);
+      product.secondaryImages = req.files['secondaryImages'].map(file => String(file.path));
     }
 
-    // Update only provided fields
-    if (productName) product.productName = productName;
-    if (quantity) product.quantity = quantity;
-    if (price) product.price = price;
-    if (description) product.description = description;
-    if (category) product.category = category;
-    if (addToSellPost !== undefined) product.addToSellPost = addToSellPost;
+    // Update only provided fields with string conversion
+    if (productName) product.productName = String(productName);
+    if (quantity) product.quantity = String(quantity);
+    if (price) product.price = String(price);
+    if (description) product.description = String(description);
+    if (category) product.category = String(category);
+    if (addToSellPost !== undefined) product.addToSellPost = String(addToSellPost);
 
     await product.save();
 
     res.json({
       message: "Product updated successfully",
       product
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: "Server error", 
+      error: error.message 
+    });
+  }
+};
+
+// Delete Product by ID
+export const deleteProductById = async (req, res) => {
+  try {
+    const producerId = req.user.id;
+    const { productId } = req.params;
+
+    // Find product and ensure it belongs to the producer
+    const product = await Product.findOne({
+      _id: productId,
+      producer: producerId,
+    });
+
+    if (!product) {
+      return res.status(404).json({ 
+        message: "Product not found or not authorized" 
+      });
+    }
+
+    // Delete the product
+    await Product.findByIdAndDelete(productId);
+
+    res.json({
+      message: "Product deleted successfully"
     });
   } catch (error) {
     res.status(500).json({ 
