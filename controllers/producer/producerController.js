@@ -116,7 +116,7 @@ export const addProduct = async (req, res) => {
       return res.status(400).json({ message: "Product image is required" });
     }
 
-    // Create new product with string conversion
+    // Create new product with string conversion and timestamps
     const newProduct = new Product({
       producer: producerId,
       image: String(image),
@@ -124,9 +124,16 @@ export const addProduct = async (req, res) => {
       productName: String(productName),
       quantity: String(quantity),
       price: String(price),
+      previousPrice: String(price), // Initially same as current price
+      priceHistory: [{
+        price: String(price),
+        changedAt: new Date()
+      }],
       description: String(description),
       category: String(category),
       addToSellPost: String(addToSellPost),
+      createdAt: new Date(),
+      updatedAt: new Date()
     });
 
     await newProduct.save();
@@ -216,16 +223,49 @@ export const updateProductById = async (req, res) => {
     // Update only provided fields with string conversion
     if (productName) product.productName = String(productName);
     if (quantity) product.quantity = String(quantity);
-    if (price) product.price = String(price);
+    
+    // Handle price update with history tracking
+    if (price) {
+      const newPrice = String(price);
+      if (newPrice !== product.price) {
+        // Store current price as previous before updating
+        product.previousPrice = product.price;
+        product.price = newPrice;
+        
+        // Initialize priceHistory if it doesn't exist
+        if (!product.priceHistory) {
+          product.priceHistory = [];
+        }
+        
+        // Add to price history
+        product.priceHistory.push({
+          price: newPrice,
+          changedAt: new Date()
+        });
+      }
+    }
+    
     if (description) product.description = String(description);
     if (category) product.category = String(category);
     if (addToSellPost !== undefined) product.addToSellPost = String(addToSellPost);
+    
+    // Update the updatedAt timestamp
+    product.updatedAt = new Date();
 
-    await product.save();
+    // Save the product and explicitly select all fields including previousPrice and priceHistory
+    const updatedProduct = await product.save();
 
+    // Return the complete product data
     res.json({
       message: "Product updated successfully",
-      product
+      product: {
+        ...updatedProduct.toObject(),
+        previousPrice: updatedProduct.previousPrice || updatedProduct.price,
+        priceHistory: updatedProduct.priceHistory || [{
+          price: updatedProduct.price,
+          changedAt: updatedProduct.updatedAt
+        }]
+      }
     });
   } catch (error) {
     res.status(500).json({ 
