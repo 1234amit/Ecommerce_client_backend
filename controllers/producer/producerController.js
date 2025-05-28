@@ -94,7 +94,6 @@ export const changeProducerPassword = async (req, res) => {
 export const addProduct = async (req, res) => {
   try {
     const producerId = req.user.id;
-
     const {
       productName,
       quantity,
@@ -102,25 +101,32 @@ export const addProduct = async (req, res) => {
       description,
       category,
       addToSellPost,
+      image, // Accept as string
+      secondaryImages // Accept as array of strings or string
     } = req.body;
 
-    // Handle main image
-    const image = req.files['image'] ? req.files['image'][0].path : null;
-    
-    // Handle secondary images
-    const secondaryImages = req.files['secondaryImages'] 
-      ? req.files['secondaryImages'].map(file => file.path)
-      : [];
-
-    if (!image) {
-      return res.status(400).json({ message: "Product image is required" });
+    // Validate image is a string (URL or file path)
+    if (!image || typeof image !== 'string') {
+      return res.status(400).json({ message: "Main text file path (string) is required for the image field" });
     }
 
-    // Create new product with string conversion and timestamps
+    // Validate secondaryImages is an array of strings or a single string
+    let secondaryImagesArr = [];
+    if (secondaryImages) {
+      if (Array.isArray(secondaryImages)) {
+        secondaryImagesArr = secondaryImages;
+      } else if (typeof secondaryImages === 'string') {
+        secondaryImagesArr = [secondaryImages];
+      } else {
+        return res.status(400).json({ message: "secondaryImages must be an array of strings or a string" });
+      }
+    }
+
+    // Create new product
     const newProduct = new Product({
       producer: producerId,
       image: String(image),
-      secondaryImages: secondaryImages.map(img => String(img)),
+      secondaryImages: secondaryImagesArr.map(img => String(img)),
       productName: String(productName),
       quantity: String(quantity),
       price: String(price),
@@ -138,9 +144,7 @@ export const addProduct = async (req, res) => {
 
     await newProduct.save();
 
-    res
-      .status(201)
-      .json({ message: "Product added successfully", product: newProduct });
+    res.status(201).json({ message: "Product added successfully", product: newProduct });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -196,6 +200,8 @@ export const updateProductById = async (req, res) => {
       description,
       category,
       addToSellPost,
+      image, // Accept as string
+      secondaryImages // Accept as array of strings or string
     } = req.body;
 
     // Find product and ensure it belongs to the producer
@@ -210,14 +216,25 @@ export const updateProductById = async (req, res) => {
       });
     }
 
-    // Handle main image if provided
-    if (req.files && req.files['image']) {
-      product.image = String(req.files['image'][0].path);
+    // Handle main image if provided (as string)
+    if (image !== undefined) {
+      if (typeof image !== 'string') {
+        return res.status(400).json({ message: "Image must be a string (file path or URL)" });
+      }
+      product.image = String(image);
     }
 
-    // Handle secondary images if provided
-    if (req.files && req.files['secondaryImages']) {
-      product.secondaryImages = req.files['secondaryImages'].map(file => String(file.path));
+    // Handle secondary images if provided (as array of strings or string)
+    if (secondaryImages !== undefined) {
+      let secondaryImagesArr = [];
+      if (Array.isArray(secondaryImages)) {
+        secondaryImagesArr = secondaryImages;
+      } else if (typeof secondaryImages === 'string') {
+        secondaryImagesArr = [secondaryImages];
+      } else {
+        return res.status(400).json({ message: "secondaryImages must be an array of strings or a string" });
+      }
+      product.secondaryImages = secondaryImagesArr.map(img => String(img));
     }
 
     // Update only provided fields with string conversion
