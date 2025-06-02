@@ -1,6 +1,7 @@
 import User from "../../models/User.js";
 import bcrypt from "bcryptjs";
 import Product from "../../models/Product.js";
+import Notification from "../../models/Notification.js";
 
 // Get Admin Profile
 export const getAdminProfile = async (req, res) => {
@@ -783,6 +784,56 @@ export const getProductById = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching product:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Delete product by ID (Admin Only)
+export const deleteProductById = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const productId = req.params.id;
+    
+    // Find the product and populate producer details
+    const product = await Product.findById(productId).populate('producer');
+    
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Create notification for deletion started
+    const deletionStartedNotification = new Notification({
+      recipient: product.producer._id,
+      type: "product_deletion_started",
+      message: `Admin has initiated deletion of your product: ${product.productName}`,
+      productId: product._id
+    });
+    await deletionStartedNotification.save();
+
+    // Delete the product
+    await Product.findByIdAndDelete(productId);
+
+    // Create notification for deletion completed
+    const deletionCompletedNotification = new Notification({
+      recipient: product.producer._id,
+      type: "product_deletion_completed",
+      message: `Your product "${product.productName}" has been deleted by admin`,
+      productId: product._id
+    });
+    await deletionCompletedNotification.save();
+
+    res.json({ 
+      message: "Product deleted successfully",
+      notifications: {
+        started: deletionStartedNotification,
+        completed: deletionCompletedNotification
+      }
+    });
+  } catch (error) {
+    console.error("Error deleting product:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };

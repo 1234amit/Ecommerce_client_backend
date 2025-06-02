@@ -34,6 +34,7 @@ import {
   approveProducer,
   getAllProducts,
   getProductById,
+  deleteProductById,
 } from "../../controllers/admin/adminController.js";
 
 const router = express.Router();
@@ -156,5 +157,8 @@ router.get("/all-products", verifyToken, verifyAdmin, getAllProducts);
 
 // Get single product by ID (Admin Only)
 router.get("/all-products/:id", verifyToken, verifyAdmin, getProductById);
+
+// Delete product by ID (Admin Only)
+router.delete("/all-products/:id", verifyToken, verifyAdmin, deleteProductById);
 
 export default router;
