@@ -1,5 +1,6 @@
 import User from "../../models/User.js";
 import bcrypt from "bcryptjs";
+import Product from "../../models/Product.js";
 
 // Get Admin Profile
 export const getAdminProfile = async (req, res) => {
@@ -732,6 +733,56 @@ export const approveProducer = async (req, res) => {
     res.json({ message: "Producer approved successfully" });
   } catch (error) {
     console.error("Error approving producer:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+//view all the products by admin
+export const getAllProducts = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const products = await Product.find()
+      .populate('producer', 'name email phone') // Populate producer details
+      .sort({ createdAt: -1 }); // Sort by newest first
+
+    if (products.length === 0) {
+      return res.status(404).json({ message: "No products found" });
+    }
+
+    res.json({
+      message: "All products fetched successfully",
+      products,
+    });
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Get single product by ID (Admin Only)
+export const getProductById = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const productId = req.params.id;
+    const product = await Product.findById(productId)
+      .populate('producer', 'name email phone'); // Populate producer details
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.json({
+      message: "Product details fetched successfully",
+      product,
+    });
+  } catch (error) {
+    console.error("Error fetching product:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };

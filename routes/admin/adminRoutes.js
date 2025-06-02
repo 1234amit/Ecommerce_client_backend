@@ -32,6 +32,8 @@ import {
   searchProducer,
   getPendingProducers,
   approveProducer,
+  getAllProducts,
+  getProductById,
 } from "../../controllers/admin/adminController.js";
 
 const router = express.Router();
@@ -148,5 +150,11 @@ router.get("/all-producer/:id", verifyToken, verifyAdmin, getProducerById);
 
 router.get("/pending-producers", verifyToken, verifyAdmin, getPendingProducers);
 router.put("/approve-producer/:id", verifyToken, verifyAdmin, approveProducer);
+
+// Get all products (Admin Only)
+router.get("/all-products", verifyToken, verifyAdmin, getAllProducts);
+
+// Get single product by ID (Admin Only)
+router.get("/all-products/:id", verifyToken, verifyAdmin, getProductById);
 
 export default router;
