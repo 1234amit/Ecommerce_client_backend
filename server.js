@@ -13,27 +13,23 @@ import wholesalerRoutes from "./routes/wholeseller/wholesalerRoutes.js";
 import cors from "cors";
 import helmet from "helmet";
 import { Server } from "socket.io";
-import http from "http";
+import { createServer } from "http";
+import { initializeSocket } from './config/socket.js';
 
 dotenv.config();
 connectDB();
 
 const app = express();
+const httpServer = createServer(app);
+
+// Initialize Socket.IO
+const io = initializeSocket(httpServer);
+app.set('io', io);
 
 // Middleware
 app.use(bodyParser.json());
 
-
-// create http server into socket io
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*", // Allow frontend to connect
-  },
-});
-
 app.use(express.json());
-
 
 app.use(
   cors({
@@ -71,4 +67,6 @@ app.get("/", (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+httpServer.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});

@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import User from "../../models/User.js";
 import Product from "../../models/Product.js";
+import Notification from "../../models/Notification.js";
 
 // Get Producer Profile
 export const getProducerProfile = async (req, res) => {
@@ -93,7 +94,12 @@ export const changeProducerPassword = async (req, res) => {
 // Add Product by Producer
 export const addProduct = async (req, res) => {
   try {
-    const producerId = req.user.id;
+    // Debug log to check req.user
+    console.log('req.user:', req.user);
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ message: 'Unauthorized: No user found in request. Check your authentication middleware.' });
+    }
+    const producerId = req.user._id;
     const {
       productName,
       quantity,
@@ -101,28 +107,27 @@ export const addProduct = async (req, res) => {
       description,
       category,
       addToSellPost,
-      image, // Accept as string
-      secondaryImages // Accept as array of strings or string
+      image, // This will be a string (URL)
+      secondaryImages // This can be a string or array of strings (URLs)
     } = req.body;
 
-    // Validate image is a string (URL or file path)
-    if (!image || typeof image !== 'string') {
-      return res.status(400).json({ message: "Main text file path (string) is required for the image field" });
+    // Validate required fields
+    if (!productName || !quantity || !price || !description || !category || !image) {
+      return res.status(400).json({ 
+        message: "All fields (including image URL) are required" 
+      });
     }
 
-    // Validate secondaryImages is an array of strings or a single string
+    // Handle secondaryImages as array or string
     let secondaryImagesArr = [];
     if (secondaryImages) {
       if (Array.isArray(secondaryImages)) {
         secondaryImagesArr = secondaryImages;
       } else if (typeof secondaryImages === 'string') {
         secondaryImagesArr = [secondaryImages];
-      } else {
-        return res.status(400).json({ message: "secondaryImages must be an array of strings or a string" });
       }
     }
 
-    // Create new product
     const newProduct = new Product({
       producer: producerId,
       image: String(image),
@@ -130,37 +135,62 @@ export const addProduct = async (req, res) => {
       productName: String(productName),
       quantity: String(quantity),
       price: String(price),
-      previousPrice: String(price), // Initially same as current price
+      previousPrice: String(price),
       priceHistory: [{
         price: String(price),
         changedAt: new Date()
       }],
       description: String(description),
       category: String(category),
-      addToSellPost: String(addToSellPost),
+      addToSellPost: String(addToSellPost || 'no'),
       createdAt: new Date(),
       updatedAt: new Date()
     });
 
-    await newProduct.save();
+    const savedProduct = await newProduct.save();
 
-    res.status(201).json({ message: "Product added successfully", product: newProduct });
+    res.status(201).json({ 
+      message: "Product added successfully", 
+      product: savedProduct 
+    });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json({ 
+      message: "Server error", 
+      error: error.message 
+    });
   }
 };
 
 // Get All Products for Producer
 export const getAllProducts = async (req, res) => {
   try {
-    const producerId = req.user.id; // Get producer ID from token
+    // Get producer ID from the verified user
+    const producerId = req.user._id; // Changed from req.user.id to req.user._id
+
+    console.log('Producer ID:', producerId); // Debug log
 
     // Find all products that belong to this producer
     const products = await Product.find({ producer: producerId });
+    
+    console.log('Found products:', products); // Debug log
 
-    res.json({ message: "Products fetched successfully", products });
+    if (!products || products.length === 0) {
+      return res.json({ 
+        message: "No products found for this producer", 
+        products: [] 
+      });
+    }
+
+    res.json({ 
+      message: "Products fetched successfully", 
+      products 
+    });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error('Error in getAllProducts:', error); // Debug log
+    res.status(500).json({ 
+      message: "Server error", 
+      error: error.message 
+    });
   }
 };
 
@@ -323,3 +353,110 @@ export const deleteProductById = async (req, res) => {
     });
   }
 };
+
+// Get all notifications for producer
+export const getNotifications = async (req, res) => {
+  try {
+    const producerId = req.user.id;
+
+    // Find all notifications for this producer, sorted by newest first
+    const notifications = await Notification.find({ recipient: producerId })
+      .sort({ createdAt: -1 });
+
+    res.json({
+      message: "Notifications fetched successfully",
+      notifications
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: "Server error", 
+      error: error.message 
+    });
+  }
+};
+
+// Mark notification as read
+export const markNotificationAsRead = async (req, res) => {
+  try {
+    const producerId = req.user.id;
+    const { notificationId } = req.params;
+
+    // Find notification and ensure it belongs to the producer
+    const notification = await Notification.findOne({
+      _id: notificationId,
+      recipient: producerId
+    });
+
+    if (!notification) {
+      return res.status(404).json({ 
+        message: "Notification not found or not authorized" 
+      });
+    }
+
+    // Mark as read
+    notification.isRead = true;
+    await notification.save();
+
+    res.json({
+      message: "Notification marked as read",
+      notification
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: "Server error", 
+      error: error.message 
+    });
+  }
+};
+
+// Mark all notifications as read
+export const markAllNotificationsAsRead = async (req, res) => {
+  try {
+    const producerId = req.user.id;
+
+    // Update all unread notifications for this producer
+    const result = await Notification.updateMany(
+      { 
+        recipient: producerId,
+        isRead: false 
+      },
+      { 
+        $set: { isRead: true } 
+      }
+    );
+
+    res.json({
+      message: "All notifications marked as read",
+      updatedCount: result.modifiedCount
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: "Server error", 
+      error: error.message 
+    });
+  }
+};
+
+// Get unread notifications count
+export const getUnreadNotificationsCount = async (req, res) => {
+  try {
+    const producerId = req.user.id;
+
+    // Count unread notifications
+    const count = await Notification.countDocuments({
+      recipient: producerId,
+      isRead: false
+    });
+
+    res.json({
+      message: "Unread notifications count fetched successfully",
+      unreadCount: count
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: "Server error", 
+      error: error.message 
+    });
+  }
+};
+

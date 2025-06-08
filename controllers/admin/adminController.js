@@ -813,6 +813,13 @@ export const deleteProductById = async (req, res) => {
     });
     await deletionStartedNotification.save();
 
+    // Emit real-time notification for deletion started
+    req.app.get('io').to(product.producer._id.toString()).emit('notification', {
+      type: 'product_deletion_started',
+      message: `Admin has initiated deletion of your product: ${product.productName}`,
+      notification: deletionStartedNotification
+    });
+
     // Delete the product
     await Product.findByIdAndDelete(productId);
 
@@ -824,6 +831,13 @@ export const deleteProductById = async (req, res) => {
       productId: product._id
     });
     await deletionCompletedNotification.save();
+
+    // Emit real-time notification for deletion completed
+    req.app.get('io').to(product.producer._id.toString()).emit('notification', {
+      type: 'product_deletion_completed',
+      message: `Your product "${product.productName}" has been deleted by admin`,
+      notification: deletionCompletedNotification
+    });
 
     res.json({ 
       message: "Product deleted successfully",

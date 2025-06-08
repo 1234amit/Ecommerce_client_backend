@@ -12,19 +12,39 @@ import {
 import { verifyToken } from "./../../middleware/verifyToken.js";
 import { verifyProducer } from "../../middleware/producer/verifyProducer.js";
 import multer from "multer";
+import notificationRoutes from './notificationRoutes.js';
+import path from 'path';
 
 const router = express.Router();
 
 // Multer setup for file upload
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/"); // Folder where images will be stored
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
   },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
-  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
 });
-const upload = multer({ storage });
+
+// File filter
+const fileFilter = (req, file, cb) => {
+  // Accept images only
+  if (!file.originalname.match(/\.(jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF)$/)) {
+    req.fileValidationError = 'Only image files are allowed!';
+    return cb(new Error('Only image files are allowed!'), false);
+  }
+  cb(null, true);
+};
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB max file size
+  }
+});
 
 // Get Producer Profile
 router.get("/profile", verifyToken, verifyProducer, getProducerProfile);
@@ -40,14 +60,11 @@ router.put(
   changeProducerPassword
 );
 
+// Add Product (accepts image and secondaryImages as text URLs)
 router.post(
   "/add-product",
   verifyToken,
   verifyProducer,
-  upload.fields([
-    { name: 'image', maxCount: 1 }, // Main image (required)
-    { name: 'secondaryImages', maxCount: 5 } // Secondary images (optional, max 5)
-  ]),
   addProduct
 );
 
@@ -63,8 +80,8 @@ router.put(
   verifyToken,
   verifyProducer,
   upload.fields([
-    { name: 'image', maxCount: 1 }, // Main image (optional for update)
-    { name: 'secondaryImages', maxCount: 5 } // Secondary images (optional for update)
+    { name: 'image', maxCount: 1 },
+    { name: 'secondaryImages', maxCount: 5 }
   ]),
   updateProductById
 );
@@ -76,5 +93,8 @@ router.delete(
   verifyProducer,
   deleteProductById
 );
+
+// Notification routes
+router.use('/notifications', notificationRoutes);
 
 export default router;

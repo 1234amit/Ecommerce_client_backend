@@ -4,17 +4,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 export const verifyProducer = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
-
-  if (!token) {
-    return res.status(401).json({ message: "Unauthorized: No token provided" });
+  if (!req.user || req.user.role !== "producer") {
+    return res.status(403).json({ message: "Forbidden: Only producers can add products." });
   }
-
-  try {
-    const decoded = jwt.verify(token, process.env.jwt_secret);
-    req.user = decoded; // Attach user details to request object
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: "Unauthorized: Invalid token" });
-  }
+  next();
 };

@@ -19,15 +19,27 @@ const productSchema = new mongoose.Schema(
       required: true,
     },
     quantity: {
-      type: Number,
+      type: String,
       required: true,
-      min: 1,
     },
     price: {
-      type: Number,
+      type: String,
       required: true,
-      min: 0,
     },
+    previousPrice: {
+      type: String,
+      required: true,
+    },
+    priceHistory: [{
+      price: {
+        type: String,
+        required: true
+      },
+      changedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
     description: {
       type: String,
       required: true,
@@ -37,12 +49,27 @@ const productSchema = new mongoose.Schema(
       required: true,
     },
     addToSellPost: {
-      type: Boolean,
-      required: true,
+      type: String,
+      enum: ['yes', 'no'],
+      default: 'no'
     },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    }
   },
   { timestamps: true }
 );
+
+// Update the updatedAt timestamp before saving
+productSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
+});
 
 const Product = mongoose.model("Product", productSchema);
 export default Product;
