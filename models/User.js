@@ -58,7 +58,10 @@ const userSchema = new mongoose.Schema(
       enum: ["pending", "approved"],
       default: "approved", // Default for non-supersalers
     },
-
+    image: {
+      type: String, // URL or file path of the profile image
+      default: null
+    },
     lastLogin: {
       type: Date,
       default: null

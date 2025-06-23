@@ -38,6 +38,13 @@ export const updateSupersalerProfile = async (req, res) => {
     if (address) updateData.address = address;
     if (nid) updateData.nid = nid;
 
+    // Handle image upload if file is provided
+    if (req.file) {
+      // Create full URL for the image
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      updateData.image = `${baseUrl}/${req.file.path}`;
+    }
+
     const updatedSupersaler = await User.findByIdAndUpdate(
       supersalerId,
       { $set: updateData },
@@ -50,6 +57,38 @@ export const updateSupersalerProfile = async (req, res) => {
 
     res.json({
       message: "Profile updated successfully",
+      supersaler: updatedSupersaler,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Update Supersaler Profile Image Only
+export const updateSupersalerProfileImage = async (req, res) => {
+  try {
+    const supersalerId = req.user.id; // Extract user ID from token
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+
+    // Create full URL for the image
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const imageUrl = `${baseUrl}/${req.file.path}`;
+
+    const updatedSupersaler = await User.findByIdAndUpdate(
+      supersalerId,
+      { image: imageUrl },
+      { new: true, runValidators: true, select: "-password" } // Exclude password field
+    );
+
+    if (!updatedSupersaler) {
+      return res.status(404).json({ message: "Supersaler not found" });
+    }
+
+    res.json({
+      message: "Profile image updated successfully",
       supersaler: updatedSupersaler,
     });
   } catch (error) {

@@ -37,6 +37,13 @@ export const updateAdminProfile = async (req, res) => {
     if (address) updateData.address = address;
     if (nid) updateData.nid = nid;
 
+    // Handle image upload if file is provided
+    if (req.file) {
+      // Create full URL for the image
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      updateData.image = `${baseUrl}/${req.file.path}`;
+    }
+
     const updatedAdmin = await User.findByIdAndUpdate(
       adminId,
       { $set: updateData },
@@ -48,6 +55,38 @@ export const updateAdminProfile = async (req, res) => {
     }
 
     res.json({ message: "Profile updated successfully", admin: updatedAdmin });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Update Admin Profile Image Only
+export const updateAdminProfileImage = async (req, res) => {
+  try {
+    const adminId = req.user.id; // Extract user ID from token
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+
+    // Create full URL for the image
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const imageUrl = `${baseUrl}/${req.file.path}`;
+
+    const updatedAdmin = await User.findByIdAndUpdate(
+      adminId,
+      { image: imageUrl },
+      { new: true, runValidators: true, select: "-password" } // Exclude password field
+    );
+
+    if (!updatedAdmin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    res.json({ 
+      message: "Profile image updated successfully", 
+      admin: updatedAdmin 
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }

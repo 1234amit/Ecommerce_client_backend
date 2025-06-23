@@ -7,6 +7,7 @@ import {
   getProducerProfile,
   getProductById,
   updateProducerProfile,
+  updateProducerProfileImage,
   updateProductById,
 } from "../../controllers/producer/producerController.js";
 import { verifyToken } from "./../../middleware/verifyToken.js";
@@ -49,8 +50,11 @@ const upload = multer({
 // Get Producer Profile
 router.get("/profile", verifyToken, verifyProducer, getProducerProfile);
 
-// Update Producer Profile
-router.put("/profile", verifyToken, verifyProducer, updateProducerProfile);
+// Update Producer Profile (with optional image upload)
+router.put("/profile", verifyToken, verifyProducer, upload.single('image'), updateProducerProfile);
+
+// Update Producer Profile Image Only
+router.put("/profile-image", verifyToken, verifyProducer, upload.single('image'), updateProducerProfileImage);
 
 // Change Producer Password
 router.put(

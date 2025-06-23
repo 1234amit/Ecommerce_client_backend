@@ -38,6 +38,13 @@ export const updateWholesalerProfile = async (req, res) => {
     if (address) updateData.address = address;
     if (nid) updateData.nid = nid;
 
+    // Handle image upload if file is provided
+    if (req.file) {
+      // Create full URL for the image
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      updateData.image = `${baseUrl}/${req.file.path}`;
+    }
+
     const updatedWholesaler = await User.findByIdAndUpdate(
       wholesalerId,
       { $set: updateData },
@@ -50,6 +57,38 @@ export const updateWholesalerProfile = async (req, res) => {
 
     res.json({
       message: "Profile updated successfully",
+      wholesaler: updatedWholesaler,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Update Wholesaler Profile Image Only
+export const updateWholesalerProfileImage = async (req, res) => {
+  try {
+    const wholesalerId = req.user.id; // Extract user ID from token
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+
+    // Create full URL for the image
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const imageUrl = `${baseUrl}/${req.file.path}`;
+
+    const updatedWholesaler = await User.findByIdAndUpdate(
+      wholesalerId,
+      { image: imageUrl },
+      { new: true, runValidators: true, select: "-password" } // Exclude password field
+    );
+
+    if (!updatedWholesaler) {
+      return res.status(404).json({ message: "Wholesaler not found" });
+    }
+
+    res.json({
+      message: "Profile image updated successfully",
       wholesaler: updatedWholesaler,
     });
   } catch (error) {
