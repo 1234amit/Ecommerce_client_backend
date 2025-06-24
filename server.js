@@ -17,6 +17,7 @@ import { createServer } from "http";
 import { initializeSocket } from './config/socket.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import profileRoutes from "./routes/profileRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,6 +67,7 @@ app.use("/api/v1/consumer", consumerRoutes);
 app.use("/api/v1/producer", producerRoutes);
 app.use("/api/v1/supersaler", supersalerRoutes);
 app.use("/api/v1/wholesaler", wholesalerRoutes);
+app.use("/api/v1/profile", profileRoutes);
 
 // Routes
 // app.use("/api/users", userRoutes);
