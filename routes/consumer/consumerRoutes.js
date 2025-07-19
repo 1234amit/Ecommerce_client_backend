@@ -4,6 +4,8 @@ import {
   getOwnProfile,
   updateOwnProfile,
   updateConsumerProfileImage,
+  viewAllProducts,
+  viewSingleProduct,
 } from "../../controllers/consumer/consumerController.js";
 import { verifyToken } from "../../middleware/consumer/verifyToken.js";
 import multer from "multer";
@@ -51,6 +53,12 @@ router.put("/profile-image", verifyToken, upload.single('image'), updateConsumer
 
 // change password for consumer
 router.put("/change-password", verifyToken, changePassword);
+
+// View all products for consumer
+router.get("/products", verifyToken, viewAllProducts);
+
+// View single product by ID for consumer
+router.get("/products/:productId", verifyToken, viewSingleProduct);
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {

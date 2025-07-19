@@ -1,5 +1,6 @@
 import User from "../../models/User.js";
 import bcrypt from "bcryptjs";
+import Product from "../../models/Product.js"; // Added import for Product
 
 // Get User Profile (Logged-in User)
 export const getOwnProfile = async (req, res) => {
@@ -131,3 +132,57 @@ export const changePassword = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+// View all products for consumer
+export const viewAllProducts = async (req, res) => {
+  try {
+    // Get all products with producer information
+    const products = await Product.find({})
+      .populate('producer', 'name email phone division district thana address image')
+      .sort({ createdAt: -1 }); // Sort by newest first
+
+    if (!products || products.length === 0) {
+      return res.status(404).json({ message: "No products found" });
+    }
+
+    res.json({ 
+      message: "Products fetched successfully", 
+      count: products.length,
+      products 
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// View single product by ID for consumer
+export const viewSingleProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    // Validate product ID
+    if (!productId) {
+      return res.status(400).json({ message: "Product ID is required" });
+    }
+
+    // Find product by ID with producer information
+    const product = await Product.findById(productId)
+      .populate('producer', 'name email phone division district thana address image');
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.json({ 
+      message: "Product fetched successfully", 
+      product 
+    });
+  } catch (error) {
+    // Handle invalid ObjectId format
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: "Invalid product ID format" });
+    }
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
