@@ -2,7 +2,9 @@ import express from "express";
 import {
   addProduct,
   changeProducerPassword,
+  createCategory,
   deleteProductById,
+  getAllCategories,
   getAllProducts,
   getProducerProfile,
   getProductById,
@@ -63,6 +65,11 @@ router.put(
   verifyProducer,
   changeProducerPassword
 );
+
+router.post("/createCategory", verifyToken,
+  verifyProducer, createCategory);
+router.get("/get-allcategory", verifyToken,
+  verifyProducer, getAllCategories);
 
 // Add Product (accepts image and secondaryImages as text URLs)
 router.post(

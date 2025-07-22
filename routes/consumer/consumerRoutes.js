@@ -6,6 +6,7 @@ import {
   updateConsumerProfileImage,
   viewAllProducts,
   viewSingleProduct,
+  getAllCategoriesForConsumer,
 } from "../../controllers/consumer/consumerController.js";
 import { verifyToken } from "../../middleware/consumer/verifyToken.js";
 import multer from "multer";
@@ -53,6 +54,9 @@ router.put("/profile-image", verifyToken, upload.single('image'), updateConsumer
 
 // change password for consumer
 router.put("/change-password", verifyToken, changePassword);
+
+// view all category
+router.get("/view-all-category", verifyToken, getAllCategoriesForConsumer);
 
 // View all products for consumer
 router.get("/products", verifyToken, viewAllProducts);

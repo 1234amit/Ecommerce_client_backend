@@ -131,13 +131,81 @@ export const changeProducerPassword = async (req, res) => {
 };
 
 // Add Product by Producer
+// export const addProduct = async (req, res) => {
+//   try {
+//     // Debug log to check req.user
+//     console.log('req.user:', req.user);
+//     if (!req.user || !req.user._id) {
+//       return res.status(401).json({ message: 'Unauthorized: No user found in request. Check your authentication middleware.' });
+//     }
+//     const producerId = req.user._id;
+//     const {
+//       productName,
+//       quantity,
+//       price,
+//       description,
+//       category,
+//       addToSellPost,
+//       image, // This will be a string (URL)
+//       secondaryImages // This can be a string or array of strings (URLs)
+//     } = req.body;
+
+//     // Validate required fields
+//     if (!productName || !quantity || !price || !description || !category || !image) {
+//       return res.status(400).json({ 
+//         message: "All fields (including image URL) are required" 
+//       });
+//     }
+
+//     // Handle secondaryImages as array or string
+//     let secondaryImagesArr = [];
+//     if (secondaryImages) {
+//       if (Array.isArray(secondaryImages)) {
+//         secondaryImagesArr = secondaryImages;
+//       } else if (typeof secondaryImages === 'string') {
+//         secondaryImagesArr = [secondaryImages];
+//       }
+//     }
+
+//     const newProduct = new Product({
+//       producer: producerId,
+//       image: String(image),
+//       secondaryImages: secondaryImagesArr.map(img => String(img)),
+//       productName: String(productName),
+//       quantity: String(quantity),
+//       price: String(price),
+//       previousPrice: String(price),
+//       priceHistory: [{
+//         price: String(price),
+//         changedAt: new Date()
+//       }],
+//       description: String(description),
+//       category: String(category),
+//       addToSellPost: String(addToSellPost || 'no'),
+//       createdAt: new Date(),
+//       updatedAt: new Date()
+//     });
+
+//     const savedProduct = await newProduct.save();
+
+//     res.status(201).json({ 
+//       message: "Product added successfully", 
+//       product: savedProduct 
+//     });
+//   } catch (error) {
+//     res.status(500).json({ 
+//       message: "Server error", 
+//       error: error.message 
+//     });
+//   }
+// };
+
 export const addProduct = async (req, res) => {
   try {
-    // Debug log to check req.user
-    console.log('req.user:', req.user);
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ message: 'Unauthorized: No user found in request. Check your authentication middleware.' });
+      return res.status(401).json({ message: 'Unauthorized: No user found in request' });
     }
+
     const producerId = req.user._id;
     const {
       productName,
@@ -146,18 +214,22 @@ export const addProduct = async (req, res) => {
       description,
       category,
       addToSellPost,
-      image, // This will be a string (URL)
-      secondaryImages // This can be a string or array of strings (URLs)
+      image,
+      secondaryImages
     } = req.body;
 
     // Validate required fields
     if (!productName || !quantity || !price || !description || !category || !image) {
-      return res.status(400).json({ 
-        message: "All fields (including image URL) are required" 
-      });
+      return res.status(400).json({ message: "All fields (including image URL) are required" });
     }
 
-    // Handle secondaryImages as array or string
+    // Validate category ID exists in Category collection
+    const existingCategory = await Category.findById(category);
+    if (!existingCategory) {
+      return res.status(400).json({ message: "Invalid category ID" });
+    }
+
+    // Normalize secondaryImages
     let secondaryImagesArr = [];
     if (secondaryImages) {
       if (Array.isArray(secondaryImages)) {
@@ -180,7 +252,7 @@ export const addProduct = async (req, res) => {
         changedAt: new Date()
       }],
       description: String(description),
-      category: String(category),
+      category, // Save ObjectId directly
       addToSellPost: String(addToSellPost || 'no'),
       createdAt: new Date(),
       updatedAt: new Date()
@@ -188,17 +260,18 @@ export const addProduct = async (req, res) => {
 
     const savedProduct = await newProduct.save();
 
-    res.status(201).json({ 
-      message: "Product added successfully", 
-      product: savedProduct 
+    res.status(201).json({
+      message: "Product added successfully",
+      product: savedProduct
     });
   } catch (error) {
-    res.status(500).json({ 
-      message: "Server error", 
-      error: error.message 
+    res.status(500).json({
+      message: "Server error",
+      error: error.message
     });
   }
 };
+
 
 // Get All Products for Producer
 export const getAllProducts = async (req, res) => {
@@ -498,4 +571,37 @@ export const getUnreadNotificationsCount = async (req, res) => {
     });
   }
 };
+
+
+// controllers/categoryController.js
+import Category from "../../models/Category.js";
+
+// Create new category
+export const createCategory = async (req, res) => {
+  try {
+    const { name, icon, description } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ message: "Category name is required" });
+    }
+
+    const category = new Category({ name, icon, description });
+    await category.save();
+
+    res.status(201).json({ message: "Category created", category });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// Get all categories
+export const getAllCategories = async (req, res) => {
+  try {
+    const categories = await Category.find().sort({ createdAt: -1 });
+    res.json({ message: "Categories fetched", categories });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
 
