@@ -10,6 +10,7 @@ import consumerRoutes from "./routes/consumer/consumerRoutes.js";
 import producerRoutes from "./routes/producer/producerRoutes.js";
 import supersalerRoutes from "./routes/superseller/supersalerRoutes.js";
 import wholesalerRoutes from "./routes/wholeseller/wholesalerRoutes.js";
+import WishListRoutes from "./routes/WishListRoutes.js";
 import cors from "cors";
 import helmet from "helmet";
 import { Server } from "socket.io";
@@ -68,6 +69,7 @@ app.use("/api/v1/producer", producerRoutes);
 app.use("/api/v1/supersaler", supersalerRoutes);
 app.use("/api/v1/wholesaler", wholesalerRoutes);
 app.use("/api/v1/profile", profileRoutes);
+app.use("/api/v1/wishlist", WishListRoutes);
 
 // Routes
 // app.use("/api/users", userRoutes);
@@ -76,7 +78,7 @@ app.get("/", (req, res) => {
   res.send("Wellcome to Krishi Ecommerce Backend!");
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 4001;
 httpServer.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
