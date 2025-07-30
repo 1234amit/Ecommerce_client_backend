@@ -19,6 +19,8 @@ import { initializeSocket } from './config/socket.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import profileRoutes from "./routes/profileRoutes.js";
+import cartRoutes from "./routes/cartRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,6 +46,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(
   cors({
     origin: [
+      "https://krishighar.com/",
       "http://localhost:5173",
       "http://localhost:5174",
       "http://localhost:3000",
@@ -70,6 +73,8 @@ app.use("/api/v1/supersaler", supersalerRoutes);
 app.use("/api/v1/wholesaler", wholesalerRoutes);
 app.use("/api/v1/profile", profileRoutes);
 app.use("/api/v1/wishlist", WishListRoutes);
+app.use("/api/v1/addToCart", cartRoutes);
+app.use("/api/v1/order", orderRoutes);
 
 // Routes
 // app.use("/api/users", userRoutes);
