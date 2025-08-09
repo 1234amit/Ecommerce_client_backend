@@ -21,6 +21,7 @@ import { fileURLToPath } from 'url';
 import profileRoutes from "./routes/profileRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
+import paymentRoutes from "./routes/PaymentRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,6 +76,7 @@ app.use("/api/v1/profile", profileRoutes);
 app.use("/api/v1/wishlist", WishListRoutes);
 app.use("/api/v1/addToCart", cartRoutes);
 app.use("/api/v1/order", orderRoutes);
+app.use("/api/v1/payments", paymentRoutes)
 
 // Routes
 // app.use("/api/users", userRoutes);

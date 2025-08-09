@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import User from "../../models/User.js";
 import Product from "../../models/Product.js";
 import Notification from "../../models/Notification.js";
+import Category from "../../models/Category.js";
 
 // Get Producer Profile
 export const getProducerProfile = async (req, res) => {
@@ -574,7 +575,7 @@ export const getUnreadNotificationsCount = async (req, res) => {
 
 
 // controllers/categoryController.js
-import Category from "../../models/Category.js";
+
 
 // Create new category
 export const createCategory = async (req, res) => {

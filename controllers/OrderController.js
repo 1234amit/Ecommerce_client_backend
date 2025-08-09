@@ -1,170 +1,183 @@
-
 import mongoose from 'mongoose';
 import Cart from '../models/Cart.js';
 import User from '../models/User.js';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 
-
 class OrderController {
     // Create a new order
+    // Create a new order (tailored to your Product schema)
+    // Create a new order (fits your Product schema exactly)
     static async createOrder(req, res) {
         try {
-            const userId = req.user.id; // From JWT token
+            const userId = req.user?.id;
+            if (!userId) {
+                return res.status(401).json({ success: false, message: 'Unauthorized' });
+            }
+
             const {
                 items,
                 shippingAddress,
                 paymentMethod,
                 orderNotes,
-                deliveryFee = 0
-            } = req.body;
+                deliveryFee = 0,
+            } = req.body || {};
 
-            // Validate required fields
-            if (!items || !Array.isArray(items) || items.length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Order items are required'
-                });
+            // Basic validation
+            if (!Array.isArray(items) || items.length === 0) {
+                return res.status(400).json({ success: false, message: 'Order items are required' });
             }
-
             if (!shippingAddress) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Shipping address is required'
-                });
+                return res.status(400).json({ success: false, message: 'Shipping address is required' });
             }
-
-            // Validate shipping address
             const requiredAddressFields = ['fullName', 'phoneNumber', 'address', 'city'];
-            for (const field of requiredAddressFields) {
-                if (!shippingAddress[field] || !shippingAddress[field].trim()) {
-                    return res.status(400).json({
-                        success: false,
-                        message: `${field} is required in shipping address`
-                    });
+            for (const f of requiredAddressFields) {
+                const v = shippingAddress[f];
+                if (v == null || (typeof v === 'string' && v.trim() === '')) {
+                    return res.status(400).json({ success: false, message: `${f} is required in shipping address` });
                 }
             }
-
-            // Validate payment method
             const validPaymentMethods = ['cash_on_delivery', 'bkash', 'nagad', 'rocket'];
             if (!validPaymentMethods.includes(paymentMethod)) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Invalid payment method'
-                });
+                return res.status(400).json({ success: false, message: 'Invalid payment method' });
             }
 
-            // Process order items and validate products
+            // Helpers
+            const parseNumeric = (v) => {
+                if (v === null || v === undefined) return undefined;
+                const cleaned = String(v).replace(/[^\d.-]/g, '');   // supports "90,000", " 120000 "
+                if (cleaned === '' || cleaned === '-' || cleaned === '.' || cleaned === '-.') return undefined;
+                const n = Number(cleaned);
+                return Number.isFinite(n) ? n : undefined;
+            };
+
+            // Generate a unique orderId (since your schema requires it)
+            const generateOrderId = async () => {
+                const pad = (n) => String(n).padStart(2, '0');
+                const d = new Date();
+                const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+                let id;
+                do {
+                    const rnd = Math.floor(Math.random() * 1e6).toString().padStart(6, '0');
+                    id = `ORD-${ymd}-${rnd}`;
+                } while (await Order.exists({ orderId: id }));
+                return id;
+            };
+
             const processedItems = [];
             let subtotal = 0;
 
+            // Process items
             for (const item of items) {
-                // Validate item structure
-                if (!item.productId || !item.quantity || item.quantity < 1) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Invalid item data: productId and quantity are required'
-                    });
+                const { productId, quantity } = item || {};
+
+                if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+                    return res.status(400).json({ success: false, message: `Invalid productId: ${productId}` });
+                }
+                const qty = Math.max(1, parseInt(quantity, 10));
+                if (!qty) {
+                    return res.status(400).json({ success: false, message: 'Invalid item quantity' });
                 }
 
-                // Get product details
-                // const product = await Product.findById(item.productId);
-
-                const productId = mongoose.Types.ObjectId.isValid(item.productId)
-                    ? new mongoose.Types.ObjectId(item.productId)
-                    : null;
-
-                if (!productId) {
-                    return res.status(400).json({
-                        success: false,
-                        message: `Invalid productId: ${item.productId}`
-                    });
-                }
-
-                const product = await Product.findById(productId);
+                // Fetch only fields your DB stores
+                const product = await Product.findById(productId)
+                    .select('productName quantity price image secondaryImages addToSellPost')
+                    .lean();
 
                 if (!product) {
-                    return res.status(400).json({
-                        success: false,
-                        message: `Product with ID ${item.productId} not found`
-                    });
+                    return res.status(404).json({ success: false, message: `Product with ID ${productId} not found` });
                 }
 
-                // Check if product is available
-                if (!product.isActive || product.stock < item.quantity) {
-                    return res.status(400).json({
-                        success: false,
-                        message: `Product ${product.name} is not available in requested quantity`
-                    });
+                const productName = product.productName || 'this product';
+
+                // Treat addToSellPost === "no" as inactive; everything else = active
+                const isActive = String(product.addToSellPost ?? 'yes').toLowerCase() !== 'no';
+                if (!isActive) {
+                    return res.status(400).json({ success: false, message: `Product ${productName} is not active` });
                 }
 
-                const itemTotal = product.price * item.quantity;
+                // Parse inventory (string in DB) and unit price (string in DB)
+                const available = parseNumeric(product.quantity);          // number | undefined
+                const unitPriceParsed = parseNumeric(product.price);
+                if (!Number.isFinite(unitPriceParsed) || unitPriceParsed < 0) {
+                    return res.status(400).json({ success: false, message: `Invalid price for ${productName}` });
+                }
+                const unitPrice = Number(unitPriceParsed);
+
+                // Only enforce stock if quantity is numeric in DB
+                if (Number.isFinite(available)) {
+                    if (available <= 0) {
+                        return res.status(400).json({ success: false, message: `Product ${productName} is not available in requested quantity` });
+                    }
+                    if (available < qty) {
+                        return res.status(400).json({ success: false, message: `Product ${productName} has only ${available} in stock` });
+                    }
+                }
+
+                const productImage = Array.isArray(product.secondaryImages) && product.secondaryImages.length
+                    ? product.secondaryImages[0]
+                    : (product.image || '');
+
+                const itemTotal = unitPrice * qty;
                 subtotal += itemTotal;
 
                 processedItems.push({
-                    productId: product._id,
-                    productName: product.name,
-                    productImage: product.images[0] || '',
-                    price: product.price,
-                    quantity: item.quantity,
-                    totalPrice: itemTotal
+                    productId: product._id,   // store as ObjectId
+                    productName,
+                    productImage,
+                    price: unitPrice,
+                    quantity: qty,
+                    totalPrice: itemTotal,
                 });
             }
 
-            // Calculate total amount
-            const totalAmount = subtotal + deliveryFee;
+            // Totals
+            const numericDeliveryFee = Number(deliveryFee) || 0;
+            const totalAmount = subtotal + numericDeliveryFee;
 
-            // Create the order
+            // Create order
+            const orderId = await generateOrderId();
             const orderData = {
+                orderId,
                 userId,
                 items: processedItems,
                 subtotal,
-                deliveryFee,
+                deliveryFee: numericDeliveryFee,
                 totalAmount,
                 paymentMethod,
                 shippingAddress,
-                orderNotes: orderNotes || ''
+                orderNotes: orderNotes || '',
             };
 
             const order = new Order(orderData);
             await order.save();
 
-            // Clear user's cart after successful order creation
-            try {
-                await Cart.deleteMany({ userId });
-            } catch (cartError) {
-                console.error('Error clearing cart:', cartError);
-                // Don't fail the order creation if cart clearing fails
-            }
+            // Best-effort clear cart
+            try { await Cart.deleteMany({ userId }); } catch (e) { console.error('Error clearing cart:', e); }
 
-            // Update product stock (optional - you might want to do this when order is confirmed)
-            // for (const item of processedItems) {
-            //   await Product.findByIdAndUpdate(item.productId, {
-            //     $inc: { stock: -item.quantity }
-            //   });
-            // }
-
-            res.status(201).json({
+            return res.status(201).json({
                 success: true,
                 message: 'Order created successfully',
                 data: {
+                    _id: order._id,
                     orderId: order.orderId,
                     totalAmount: order.totalAmount,
                     orderStatus: order.orderStatus,
                     paymentStatus: order.paymentStatus,
-                    estimatedDelivery: order.estimatedDelivery
-                }
+                    estimatedDelivery: order.estimatedDelivery,
+                },
             });
-
         } catch (error) {
             console.error('Create order error:', error);
-            res.status(500).json({
+            return res.status(500).json({
                 success: false,
                 message: 'Failed to create order',
-                error: error.message
+                error: error.message,
             });
         }
     }
+
+
 
     // Get user's orders
     static async getUserOrders(req, res) {
@@ -182,8 +195,7 @@ class OrderController {
             const orders = await Order.findByUser(userId, options);
             const totalOrders = await Order.countDocuments({ userId, isActive: true });
 
-            // Format orders for response
-            const formattedOrders = orders.map(order => ({
+            const formattedOrders = orders.map((order) => ({
                 orderId: order.orderId,
                 orderStatus: order.orderStatus,
                 statusDisplay: order.statusDisplay,
@@ -193,7 +205,7 @@ class OrderController {
                 totalItems: order.totalItems,
                 createdAt: order.createdAt,
                 estimatedDelivery: order.estimatedDelivery,
-                items: order.items.map(item => ({
+                items: order.items.map((item) => ({
                     productName: item.productName,
                     productImage: item.productImage,
                     price: item.price,
@@ -215,7 +227,6 @@ class OrderController {
                     }
                 }
             });
-
         } catch (error) {
             console.error('Get user orders error:', error);
             res.status(500).json({
@@ -226,37 +237,31 @@ class OrderController {
         }
     }
 
-    // Get order details by order ID
     static async getOrderDetails(req, res) {
         try {
             const userId = req.user.id;
+            const isAdmin = req.user.role === 'admin' || req.user.isAdmin === true;
             const { orderId } = req.params;
 
             if (!orderId) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Order ID is required'
-                });
+                return res.status(400).json({ success: false, message: 'Order ID is required' });
             }
 
-            const order = await Order.findByOrderId(orderId);
-
+            const order = await Order.findByOrderId(orderId); // returns populated userId
             if (!order) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Order not found'
-                });
+                return res.status(404).json({ success: false, message: 'Order not found' });
             }
 
-            // Check if the order belongs to the authenticated user
-            if (order.userId.toString() !== userId) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Access denied. This order does not belong to you.'
-                });
+            // Safely extract owner id whether populated or not
+            const ownerId =
+                (order.userId && order.userId._id && order.userId._id.toString()) ||
+                (order.userId && order.userId.id) || // mongoose virtual 'id' string
+                (order.userId && order.userId.toString());
+
+            if (!isAdmin && String(ownerId) !== String(userId)) {
+                return res.status(403).json({ success: false, message: 'Access denied. This order does not belong to you.' });
             }
 
-            // Format order details
             const orderDetails = {
                 orderId: order.orderId,
                 orderStatus: order.orderStatus,
@@ -277,28 +282,20 @@ class OrderController {
                 cancellationReason: order.cancellationReason,
                 createdAt: order.createdAt,
                 updatedAt: order.updatedAt,
-                items: order.items.map(item => ({
-                    productId: item.productId,
-                    productName: item.productName,
-                    productImage: item.productImage,
-                    price: item.price,
-                    quantity: item.quantity,
-                    totalPrice: item.totalPrice
-                }))
+                items: order.items.map(i => ({
+                    productId: i.productId,
+                    productName: i.productName,
+                    productImage: i.productImage,
+                    price: i.price,
+                    quantity: i.quantity,
+                    totalPrice: i.totalPrice,
+                })),
             };
 
-            res.json({
-                success: true,
-                data: orderDetails
-            });
-
+            return res.json({ success: true, data: orderDetails });
         } catch (error) {
             console.error('Get order details error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Failed to fetch order details',
-                error: error.message
-            });
+            return res.status(500).json({ success: false, message: 'Failed to fetch order details', error: error.message });
         }
     }
 
@@ -323,15 +320,10 @@ class OrderController {
             }
 
             const order = await Order.findByOrderId(orderId);
-
             if (!order) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Order not found'
-                });
+                return res.status(404).json({ success: false, message: 'Order not found' });
             }
 
-            // Update order status
             await order.updateStatus(status);
 
             res.json({
@@ -343,7 +335,6 @@ class OrderController {
                     statusDisplay: order.statusDisplay
                 }
             });
-
         } catch (error) {
             console.error('Update order status error:', error);
             res.status(500).json({
@@ -369,15 +360,10 @@ class OrderController {
             }
 
             const order = await Order.findByOrderId(orderId);
-
             if (!order) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Order not found'
-                });
+                return res.status(404).json({ success: false, message: 'Order not found' });
             }
 
-            // Check if the order belongs to the authenticated user
             if (order.userId.toString() !== userId) {
                 return res.status(403).json({
                     success: false,
@@ -385,7 +371,6 @@ class OrderController {
                 });
             }
 
-            // Cancel the order
             await order.cancelOrder('customer', reason);
 
             res.json({
@@ -398,15 +383,11 @@ class OrderController {
                     cancellationReason: order.cancellationReason
                 }
             });
-
         } catch (error) {
             console.error('Cancel order error:', error);
 
             if (error.message.includes('Cannot cancel') || error.message.includes('already cancelled')) {
-                return res.status(400).json({
-                    success: false,
-                    message: error.message
-                });
+                return res.status(400).json({ success: false, message: error.message });
             }
 
             res.status(500).json({
@@ -424,14 +405,13 @@ class OrderController {
 
             const stats = await Order.getOrderStats(userId);
 
-            // Format stats
             const formattedStats = {
                 total: 0,
                 totalAmount: 0,
                 byStatus: {}
             };
 
-            stats.forEach(stat => {
+            stats.forEach((stat) => {
                 formattedStats.total += stat.count;
                 formattedStats.totalAmount += stat.totalAmount;
                 formattedStats.byStatus[stat._id] = {
@@ -440,11 +420,7 @@ class OrderController {
                 };
             });
 
-            res.json({
-                success: true,
-                data: formattedStats
-            });
-
+            res.json({ success: true, data: formattedStats });
         } catch (error) {
             console.error('Get order stats error:', error);
             res.status(500).json({
@@ -456,33 +432,51 @@ class OrderController {
     }
 
     // Get recent orders
+    // static async getRecentOrders(req, res) {
+    //     try {
+    //         const userId = req.user.id;
+    //         const { limit = 5 } = req.query;
+
+    //         const orders = await Order.getRecentOrders(userId, parseInt(limit));
+
+    //         const formattedOrders = orders.map((order) => ({
+    //             orderId: order.orderId,
+    //             orderStatus: order.orderStatus,
+    //             totalAmount: order.totalAmount,
+    //             totalItems: order.totalItems,
+    //             createdAt: order.createdAt
+    //         }));
+
+    //         res.json({ success: true, data: formattedOrders });
+    //     } catch (error) {
+    //         console.error('Get recent orders error:', error);
+    //         res.status(500).json({
+    //             success: false,
+    //             message: 'Failed to fetch recent orders',
+    //             error: error.message
+    //         });
+    //     }
+    // }
+
     static async getRecentOrders(req, res) {
         try {
             const userId = req.user.id;
-            const { limit = 5 } = req.query;
+            const limit = parseInt(req.query.limit || 5, 10);
 
-            const orders = await Order.getRecentOrders(userId, parseInt(limit));
+            const orders = await Order.getRecentOrders(userId, limit);
 
-            const formattedOrders = orders.map(order => ({
-                orderId: order.orderId,
-                orderStatus: order.orderStatus,
-                totalAmount: order.totalAmount,
-                totalItems: order.totalItems,
-                createdAt: order.createdAt
+            const formatted = orders.map(o => ({
+                orderId: o.orderId,
+                orderStatus: o.orderStatus,
+                totalAmount: o.totalAmount,
+                totalItems: Number(o.totalItems || 0),
+                createdAt: o.createdAt
             }));
 
-            res.json({
-                success: true,
-                data: formattedOrders
-            });
-
+            return res.json({ success: true, data: formatted });
         } catch (error) {
             console.error('Get recent orders error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Failed to fetch recent orders',
-                error: error.message
-            });
+            return res.status(500).json({ success: false, message: 'Failed to fetch recent orders', error: error.message });
         }
     }
 
@@ -502,14 +496,8 @@ class OrderController {
             const skip = (page - 1) * limit;
             let query = { isActive: true };
 
-            // Apply filters
-            if (status) {
-                query.orderStatus = status;
-            }
-
-            if (paymentStatus) {
-                query.paymentStatus = paymentStatus;
-            }
+            if (status) query.orderStatus = status;
+            if (paymentStatus) query.paymentStatus = paymentStatus;
 
             if (search) {
                 query.$or = [
@@ -521,12 +509,8 @@ class OrderController {
 
             if (startDate || endDate) {
                 query.createdAt = {};
-                if (startDate) {
-                    query.createdAt.$gte = new Date(startDate);
-                }
-                if (endDate) {
-                    query.createdAt.$lte = new Date(endDate);
-                }
+                if (startDate) query.createdAt.$gte = new Date(startDate);
+                if (endDate) query.createdAt.$lte = new Date(endDate);
             }
 
             const orders = await Order.find(query)
@@ -537,7 +521,7 @@ class OrderController {
 
             const totalOrders = await Order.countDocuments(query);
 
-            const formattedOrders = orders.map(order => ({
+            const formattedOrders = orders.map((order) => ({
                 orderId: order.orderId,
                 userId: order.userId,
                 orderStatus: order.orderStatus,
@@ -562,7 +546,6 @@ class OrderController {
                     }
                 }
             });
-
         } catch (error) {
             console.error('Get all orders error:', error);
             res.status(500).json({
