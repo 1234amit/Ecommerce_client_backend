@@ -190,3 +190,24 @@ export const listByProducer = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
+/**
+ * GET /api/v1/categories
+ * Public endpoint to get all categories - accessible by all users
+ */
+export const getPublicCategories = async (req, res) => {
+  try {
+    const categories = await Category.find()
+      .select("name icon description createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      message: "Categories fetched successfully",
+      count: categories.length,
+      categories
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
