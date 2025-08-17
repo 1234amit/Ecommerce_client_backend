@@ -177,65 +177,87 @@ class OrderController {
         }
     }
 
-
-
     // Get user's orders
+    // inside OrderController
     static async getUserOrders(req, res) {
         try {
-            const userId = req.user.id;
-            const { status, page = 1, limit = 10 } = req.query;
+            // 1) Auth guard
+            const userId = req?.user?.id;
+            if (!userId) {
+                return res.status(401).json({ success: false, message: 'Unauthorized' });
+            }
+
+            // 2) Parse & sanitize query params
+            const ALLOWED_STATUSES = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+            let { status, page = 1, limit = 10 } = req.query;
+
+            page = parseInt(page, 10);
+            limit = parseInt(limit, 10);
+            if (!Number.isFinite(page) || page < 1) page = 1;
+            if (!Number.isFinite(limit) || limit < 1 || limit > 100) limit = 10;
 
             const skip = (page - 1) * limit;
-            const options = {
-                status,
-                limit: parseInt(limit),
-                skip: parseInt(skip)
-            };
 
-            const orders = await Order.findByUser(userId, options);
-            const totalOrders = await Order.countDocuments({ userId, isActive: true });
+            // 3) Build criteria (ignore invalid status or "all")
+            const criteria = { userId, isActive: true };
+            if (status && ALLOWED_STATUSES.includes(status)) {
+                criteria.orderStatus = status;
+            }
 
+            // 4) Fetch & count with SAME criteria
+            const [orders, totalOrders] = await Promise.all([
+                Order.find(criteria)
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean({ virtuals: true }) // include virtuals: statusDisplay, paymentStatusDisplay, totalItems
+                    .exec(),
+                Order.countDocuments(criteria),
+            ]);
+
+            // 5) Shape response
             const formattedOrders = orders.map((order) => ({
                 orderId: order.orderId,
                 orderStatus: order.orderStatus,
-                statusDisplay: order.statusDisplay,
+                statusDisplay: order.statusDisplay,                   // virtual
                 paymentStatus: order.paymentStatus,
-                paymentStatusDisplay: order.paymentStatusDisplay,
+                paymentStatusDisplay: order.paymentStatusDisplay,     // virtual
                 totalAmount: order.totalAmount,
-                totalItems: order.totalItems,
+                totalItems: order.totalItems,                         // virtual
                 createdAt: order.createdAt,
-                estimatedDelivery: order.estimatedDelivery,
-                items: order.items.map((item) => ({
+                estimatedDelivery: order.estimatedDelivery || null,
+                items: (order.items || []).map((item) => ({
                     productName: item.productName,
                     productImage: item.productImage,
                     price: item.price,
                     quantity: item.quantity,
-                    totalPrice: item.totalPrice
-                }))
+                    totalPrice: item.totalPrice,
+                })),
             }));
 
-            res.json({
+            return res.json({
                 success: true,
                 data: {
                     orders: formattedOrders,
                     pagination: {
-                        currentPage: parseInt(page),
-                        totalPages: Math.ceil(totalOrders / limit),
+                        currentPage: page,
+                        totalPages: Math.max(1, Math.ceil(totalOrders / limit)),
                         totalOrders,
                         hasNextPage: page * limit < totalOrders,
-                        hasPrevPage: page > 1
-                    }
-                }
+                        hasPrevPage: page > 1,
+                    },
+                },
             });
         } catch (error) {
             console.error('Get user orders error:', error);
-            res.status(500).json({
+            return res.status(500).json({
                 success: false,
                 message: 'Failed to fetch orders',
-                error: error.message
+                error: error.message,
             });
         }
     }
+
 
     static async getOrderDetails(req, res) {
         try {

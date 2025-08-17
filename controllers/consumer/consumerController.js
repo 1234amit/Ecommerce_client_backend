@@ -212,43 +212,6 @@ export const viewSingleProduct = async (req, res) => {
 
 //consumer add reviews
 
-// Add a new review
-export const createReview = async (req, res) => {
-  try {
-    const { userName, rating, comment, productId } = req.body;
-
-    if (!userName || !rating || !comment || !productId) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
-    const review = new Review({ userName, rating, comment, productId });
-    await review.save();
-
-    res.status(201).json({ message: "Review submitted successfully", review });
-  } catch (error) {
-    console.error("❌ Error submitting review:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-// Get all reviews for a product
-export const getReviewsByProduct = async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const reviews = await Review.find({ productId }).sort({ createdAt: -1 });
-
-    const averageRating =
-      reviews.reduce((acc, review) => acc + review.rating, 0) / (reviews.length || 1);
-
-    res.status(200).json({
-      reviews,
-      averageRating: parseFloat(averageRating.toFixed(1)),
-    });
-  } catch (error) {
-    console.error("❌ Error fetching reviews:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
 
 
 

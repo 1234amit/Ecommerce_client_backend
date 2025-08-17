@@ -7,8 +7,7 @@ import {
   viewAllProducts,
   viewSingleProduct,
   getAllCategoriesForConsumer,
-  createReview,
-  getReviewsByProduct,
+
 } from "../../controllers/consumer/consumerController.js";
 import { verifyToken } from "../../middleware/consumer/verifyToken.js";
 import multer from "multer";
@@ -59,12 +58,6 @@ router.put("/change-password", verifyToken, changePassword);
 
 // view all category
 router.get("/view-all-category", verifyToken, getAllCategoriesForConsumer);
-
-// create review
-router.post("/create-review", verifyToken, createReview);
-
-// get review
-router.get("/get-review/:productId", verifyToken, getReviewsByProduct);
 
 // View all products for consumer
 router.get("/products", verifyToken, viewAllProducts);
