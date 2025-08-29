@@ -24,6 +24,7 @@ import orderRoutes from "./routes/orderRoutes.js";
 import paymentRoutes from "./routes/PaymentRoutes.js";
 import productPublicRoutes from "./routes/producer/productPublicRoutes.js";
 import reviewsRoutes from "./routes/reviewsRoutes.js";
+import chat from "./routes/chat.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,6 +82,7 @@ app.use("/api/v1/order", orderRoutes);
 app.use("/api/v1/payments", paymentRoutes)
 app.use("/api/v1/products", productPublicRoutes);
 app.use("/api/v1/reviews", reviewsRoutes);
+app.use("/api/v1/chats", chat)
 
 
 // Routes
