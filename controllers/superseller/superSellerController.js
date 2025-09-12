@@ -99,34 +99,26 @@ export const updateSupersalerProfileImage = async (req, res) => {
 // Change Supersaler Password
 export const changeSupersalerPassword = async (req, res) => {
   try {
-    const supersalerId = req.user.id; // Extract user ID from token
-    const { oldPassword, newPassword } = req.body;
+    const supersalerId = req.user?.id;
+    const { oldPassword, newPassword } = req.body || {};
 
-    // Find user
-    const supersaler = await User.findById(supersalerId);
-    if (!supersaler) {
-      return res.status(404).json({ message: "Supersaler not found" });
-    }
+    if (!supersalerId) return res.status(401).json({ message: "Unauthorized" });
+    if (typeof oldPassword !== "string" || typeof newPassword !== "string" || !oldPassword.trim() || !newPassword.trim())
+      return res.status(400).json({ message: "oldPassword and newPassword are required" });
+    if (oldPassword === newPassword)
+      return res.status(400).json({ message: "New password must be different from old password" });
 
-    // Check if old password is correct
+    const supersaler = await User.findById(supersalerId).select("+password");
+    if (!supersaler) return res.status(404).json({ message: "Supersaler not found" });
+
     const isMatch = await bcrypt.compare(oldPassword, supersaler.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Old password is incorrect" });
-    }
+    if (!isMatch) return res.status(400).json({ message: "Old password is incorrect" });
 
-    // Check if new password is different from old password
-    if (oldPassword === newPassword) {
-      return res
-        .status(400)
-        .json({ message: "New password must be different from old password" });
-    }
-
-    // Assign new password (Mongoose `pre("save")` middleware will hash it)
     supersaler.password = newPassword;
     await supersaler.save();
 
-    res.json({ message: "Password changed successfully" });
+    return res.json({ message: "Password changed successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 };
