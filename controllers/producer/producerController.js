@@ -578,15 +578,40 @@ export const getUnreadNotificationsCount = async (req, res) => {
 
 
 // Create new category
+// export const createCategory = async (req, res) => {
+//   try {
+//     const { name, icon } = req.body;
+
+//     if (!name) {
+//       return res.status(400).json({ message: "Category name is required" });
+//     }
+
+//     const category = new Category({ name, icon });
+//     await category.save();
+
+//     res.status(201).json({ message: "Category created", category });
+//   } catch (err) {
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
+// controllers/categoryController.js
+
 export const createCategory = async (req, res) => {
   try {
-    const { name, icon, description } = req.body;
+    const { name } = req.body;
 
     if (!name) {
       return res.status(400).json({ message: "Category name is required" });
     }
 
-    const category = new Category({ name, icon, description });
+    let iconString = "";
+    if (req.file) {
+      // Save the path or URL to database
+      iconString = req.file.path; // e.g., "uploads/icon-123456.webp"
+    }
+
+    const category = new Category({ name, icon: iconString });
     await category.save();
 
     res.status(201).json({ message: "Category created", category });

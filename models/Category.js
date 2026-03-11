@@ -11,9 +11,6 @@ const categorySchema = new mongoose.Schema({
   icon: {
     type: String, // optional icon image URL
   },
-  description: {
-    type: String, // optional
-  },
   createdAt: {
     type: Date,
     default: Date.now,

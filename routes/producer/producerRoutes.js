@@ -34,7 +34,7 @@ const storage = multer.diskStorage({
 // File filter
 const fileFilter = (req, file, cb) => {
   // Accept images only
-  if (!file.originalname.match(/\.(jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF)$/)) {
+  if (!file.originalname.match(/\.(jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF|webp|avif)$/)) {
     req.fileValidationError = 'Only image files are allowed!';
     return cb(new Error('Only image files are allowed!'), false);
   }
@@ -66,8 +66,18 @@ router.put(
   changeProducerPassword
 );
 
-router.post("/createCategory", verifyToken,
-  verifyProducer, createCategory);
+// router.post("/createCategory", verifyToken, 
+//   verifyProducer, createCategory);
+
+router.post(
+  "/createCategory",
+  verifyToken,
+  verifyProducer,
+  upload.single("icon"), // <- handle file upload
+  createCategory
+);
+
+
 router.get("/get-allcategory", verifyToken,
   verifyProducer, getAllCategories);
 
