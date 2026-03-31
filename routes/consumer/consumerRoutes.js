@@ -7,6 +7,7 @@ import {
   viewAllProducts,
   viewSingleProduct,
   getAllCategoriesForConsumer,
+  getProductsForConsumer,
 
 } from "../../controllers/consumer/consumerController.js";
 import { verifyToken } from "../../middleware/consumer/verifyToken.js";
@@ -64,6 +65,9 @@ router.get("/products", verifyToken, viewAllProducts);
 
 // View single product by ID for consumer
 router.get("/products/:productId", verifyToken, viewSingleProduct);
+
+router.get("/products", verifyToken, getProductsForConsumer);
+
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {

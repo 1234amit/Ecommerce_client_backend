@@ -33,9 +33,14 @@ import {
   searchProducer,
   getPendingProducers,
   approveProducer,
-  getAllProducts,
-  getProductById,
   deleteProductById,
+  getPendingProducts,
+  getApprovedProducts,
+  getRejectedProducts,
+  getAllProductsAdmin,
+  getProductDetailsByAdmin,
+  approveProduct,
+  rejectProduct,
 } from "../../controllers/admin/adminController.js";
 import multer from "multer";
 import path from 'path';
@@ -188,13 +193,23 @@ router.get("/pending-producers", verifyToken, verifyAdmin, getPendingProducers);
 router.put("/approve-producer/:id", verifyToken, verifyAdmin, approveProducer);
 
 // Get all products (Admin Only)
-router.get("/all-products", verifyToken, verifyAdmin, getAllProducts);
+// router.get("/all-products", verifyToken, verifyAdmin, getAllProducts);
 
-// Get single product by ID (Admin Only)
-router.get("/all-products/:id", verifyToken, verifyAdmin, getProductById);
+// // Get single product by ID (Admin Only)
+// router.get("/all-products/:id", verifyToken, verifyAdmin, getProductById);
 
-// Delete product by ID (Admin Only)
+// // Delete product by ID (Admin Only)
 router.delete("/all-products/:id", verifyToken, verifyAdmin, deleteProductById);
+
+router.get("/products/pending", verifyToken, verifyAdmin, getPendingProducts);
+router.get("/products/approved", verifyToken, verifyAdmin, getApprovedProducts);
+router.get("/products/rejected", verifyToken, verifyAdmin, getRejectedProducts);
+
+router.get("/products/all", verifyToken, verifyAdmin, getAllProductsAdmin);
+router.get("/products/:productId", verifyToken, verifyAdmin, getProductDetailsByAdmin);
+
+router.put("/products/approve/:productId", verifyToken, verifyAdmin, approveProduct);
+router.put("/products/reject/:productId", verifyToken, verifyAdmin, rejectProduct);
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {

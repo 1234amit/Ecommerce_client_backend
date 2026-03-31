@@ -3,6 +3,7 @@ import { verifySuperSeller } from "../../middleware/superseller/verifySuperSelle
 import { verifyToken } from "../../middleware/verifyToken.js";
 import {
   changeSupersalerPassword,
+  getApprovedProductsForSuperseller,
   getSupersalerProfile,
   updateSupersalerProfile,
   updateSupersalerProfileImage,
@@ -57,6 +58,9 @@ router.put(
   verifySuperSeller,
   changeSupersalerPassword
 );
+
+router.get("/products/approved", verifyToken, verifySuperSeller, getApprovedProductsForSuperseller);
+
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {

@@ -210,8 +210,27 @@ export const viewSingleProduct = async (req, res) => {
   }
 };
 
-//consumer add reviews
 
+// ✅ Consumer can see only selling + approved products
+export const getProductsForConsumer = async (req, res) => {
+  try {
+    const products = await Product.find({
+      status: "approved",
+      isSelling: true,
+    })
+      .populate("category", "name")
+      .populate("producer", "name")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      message: "Consumer products fetched successfully",
+      products,
+    });
+  } catch (error) {
+    console.error("Error fetching consumer products:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
 
 
 

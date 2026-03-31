@@ -3,9 +3,11 @@ import { verifyToken } from "../../middleware/verifyToken.js";
 import { verifyWholesaler } from "../../middleware/wholeseller/verifyWholesaler.js";
 import {
   changeWholesalerPassword,
+  getApprovedProductsForWholesaler,
   getWholesalerProfile,
   updateWholesalerProfile,
   updateWholesalerProfileImage,
+  wholesalerSellProduct,
 } from "../../controllers/wholeseller/wholesalerController.js";
 import multer from "multer";
 import path from 'path';
@@ -57,6 +59,11 @@ router.put(
   verifyWholesaler,
   changeWholesalerPassword
 );
+
+router.get("/products/approved", verifyToken, verifyWholesaler, getApprovedProductsForWholesaler);
+
+router.put("/products/sell/:productId", verifyToken, verifyWholesaler, wholesalerSellProduct);
+
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {

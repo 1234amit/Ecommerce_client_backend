@@ -778,56 +778,56 @@ export const approveProducer = async (req, res) => {
 };
 
 //view all the products by admin
-export const getAllProducts = async (req, res) => {
-  try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Unauthorized access" });
-    }
+// export const getAllProducts = async (req, res) => {
+//   try {
+//     if (req.user.role !== "admin") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
 
-    const products = await Product.find()
-      .populate('producer', 'name email phone') // Populate producer details
-      .sort({ createdAt: -1 }); // Sort by newest first
+//     const products = await Product.find()
+//       .populate('producer', 'name email phone') // Populate producer details
+//       .sort({ createdAt: -1 }); // Sort by newest first
 
-    if (products.length === 0) {
-      return res.status(404).json({ message: "No products found" });
-    }
+//     if (products.length === 0) {
+//       return res.status(404).json({ message: "No products found" });
+//     }
 
-    res.json({
-      message: "All products fetched successfully",
-      products,
-    });
-  } catch (error) {
-    console.error("Error fetching products:", error);
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-};
+//     res.json({
+//       message: "All products fetched successfully",
+//       products,
+//     });
+//   } catch (error) {
+//     console.error("Error fetching products:", error);
+//     res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
 
-// Get single product by ID (Admin Only)
-export const getProductById = async (req, res) => {
-  try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Unauthorized access" });
-    }
+// // Get single product by ID (Admin Only)
+// export const getProductById = async (req, res) => {
+//   try {
+//     if (req.user.role !== "admin") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
 
-    const productId = req.params.id;
-    const product = await Product.findById(productId)
-      .populate('producer', 'name email phone'); // Populate producer details
+//     const productId = req.params.id;
+//     const product = await Product.findById(productId)
+//       .populate('producer', 'name email phone'); // Populate producer details
 
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
+//     if (!product) {
+//       return res.status(404).json({ message: "Product not found" });
+//     }
 
-    res.json({
-      message: "Product details fetched successfully",
-      product,
-    });
-  } catch (error) {
-    console.error("Error fetching product:", error);
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-};
+//     res.json({
+//       message: "Product details fetched successfully",
+//       product,
+//     });
+//   } catch (error) {
+//     console.error("Error fetching product:", error);
+//     res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
 
-// Delete product by ID (Admin Only)
+// // Delete product by ID (Admin Only)
 export const deleteProductById = async (req, res) => {
   try {
     if (req.user.role !== "admin") {
@@ -887,6 +887,283 @@ export const deleteProductById = async (req, res) => {
     });
   } catch (error) {
     console.error("Error deleting product:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+// import Product from "../../models/Product.js";
+// import Notification from "../../models/Notification.js";
+// import Category from "../../models/Category.js";
+// import User from "../../models/User.js";
+
+
+// ✅ Get All Pending Products (Admin)
+export const getPendingProducts = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const products = await Product.find({ status: "pending" })
+      .populate("producer", "name email phone")
+      .populate("category", "name")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      message: "Pending products fetched successfully",
+      products,
+    });
+  } catch (error) {
+    console.error("Error fetching pending products:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+// ✅ Get All Approved Products (Admin)
+export const getApprovedProducts = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const products = await Product.find({ status: "approved" })
+      .populate("producer", "name email phone")
+      .populate("category", "name")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      message: "Approved products fetched successfully",
+      products,
+    });
+  } catch (error) {
+    console.error("Error fetching approved products:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+// ✅ Get All Rejected Products (Admin)
+export const getRejectedProducts = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const products = await Product.find({ status: "rejected" })
+      .populate("producer", "name email phone")
+      .populate("category", "name")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      message: "Rejected products fetched successfully",
+      products,
+    });
+  } catch (error) {
+    console.error("Error fetching rejected products:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+// ✅ Approve Product (Admin)
+// export const approveProduct = async (req, res) => {
+//   try {
+//     if (req.user.role !== "admin") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     const { productId } = req.params;
+
+//     const product = await Product.findById(productId).populate("producer");
+
+//     if (!product) {
+//       return res.status(404).json({ message: "Product not found" });
+//     }
+
+//     if (product.status === "approved") {
+//       return res.status(400).json({ message: "Product already approved" });
+//     }
+
+//     product.status = "approved";
+//     product.approvedBy = req.user._id;
+//     product.approvedAt = new Date();
+//     product.updatedAt = new Date();
+
+//     await product.save();
+
+//     // ✅ Notification for Producer
+//     await Notification.create({
+//       recipient: product.producer._id,
+//       message: `Your product "${product.productName}" has been approved by admin.`,
+//       isRead: false,
+//       createdAt: new Date(),
+//     });
+
+//     res.json({
+//       message: "Product approved successfully",
+//       product,
+//     });
+//   } catch (error) {
+//     console.error("Error approving product:", error);
+//     res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
+
+export const approveProduct = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const { productId } = req.params;
+
+    const product = await Product.findById(productId).populate("producer");
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    if (product.status === "approved") {
+      return res.status(400).json({ message: "Product already approved" });
+    }
+
+    product.status = "approved";
+    product.approvedBy = req.user._id;
+    product.approvedAt = new Date();
+    product.updatedAt = new Date();
+
+    await product.save();
+
+    // ✅ Notification for Producer (FIXED)
+    await Notification.create({
+      recipient: product.producer._id,
+      sender: req.user._id,
+      type: "product_approved",
+      category: "product",
+      title: "Product Approved",
+      message: `Your product "${product.productName}" has been approved by admin.`,
+      productId: product._id,
+      priority: "normal",
+      isRead: false,
+    });
+
+    res.json({
+      message: "Product approved successfully",
+      product,
+    });
+  } catch (error) {
+    console.error("Error approving product:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+// ✅ Reject Product (Admin)
+export const rejectProduct = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const { productId } = req.params;
+
+    const product = await Product.findById(productId).populate("producer");
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    if (product.status === "rejected") {
+      return res.status(400).json({ message: "Product already rejected" });
+    }
+
+    product.status = "rejected";
+    product.approvedBy = null;
+    product.approvedAt = null;
+    product.isSelling = false;
+    product.updatedAt = new Date();
+
+    await product.save();
+
+    // ✅ Notification for Producer
+    // await Notification.create({
+    //   recipient: product.producer._id,
+    //   message: `Your product "${product.productName}" has been rejected by admin.`,
+    //   isRead: false,
+    //   createdAt: new Date(),
+    // });
+
+    await Notification.create({
+  recipient: product.producer._id,
+  sender: req.user._id,
+  type: "product_rejected",
+  category: "product",
+  title: "Product Rejected",
+  message: `Your product "${product.productName}" has been rejected by admin.`,
+  productId: product._id,
+  priority: "high",
+  isRead: false,
+});
+
+    res.json({
+      message: "Product rejected successfully",
+      product,
+    });
+  } catch (error) {
+    console.error("Error rejecting product:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+// ✅ Get Single Product Details by Admin
+export const getProductDetailsByAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const { productId } = req.params;
+
+    const product = await Product.findById(productId)
+      .populate("producer", "name email phone")
+      .populate("category", "name");
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.json({
+      message: "Product details fetched successfully",
+      product,
+    });
+  } catch (error) {
+    console.error("Error fetching product details:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+// ✅ Get All Products (Admin) - Optional
+export const getAllProductsAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const products = await Product.find()
+      .populate("producer", "name email phone")
+      .populate("category", "name")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      message: "All products fetched successfully",
+      products,
+    });
+  } catch (error) {
+    console.error("Error fetching all products:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };

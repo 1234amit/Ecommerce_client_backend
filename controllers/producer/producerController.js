@@ -132,13 +132,13 @@ export const changeProducerPassword = async (req, res) => {
 };
 
 // Add Product by Producer
+
 // export const addProduct = async (req, res) => {
 //   try {
-//     // Debug log to check req.user
-//     console.log('req.user:', req.user);
 //     if (!req.user || !req.user._id) {
-//       return res.status(401).json({ message: 'Unauthorized: No user found in request. Check your authentication middleware.' });
+//       return res.status(401).json({ message: 'Unauthorized: No user found in request' });
 //     }
+
 //     const producerId = req.user._id;
 //     const {
 //       productName,
@@ -147,18 +147,22 @@ export const changeProducerPassword = async (req, res) => {
 //       description,
 //       category,
 //       addToSellPost,
-//       image, // This will be a string (URL)
-//       secondaryImages // This can be a string or array of strings (URLs)
+//       image,
+//       secondaryImages
 //     } = req.body;
 
 //     // Validate required fields
 //     if (!productName || !quantity || !price || !description || !category || !image) {
-//       return res.status(400).json({ 
-//         message: "All fields (including image URL) are required" 
-//       });
+//       return res.status(400).json({ message: "All fields (including image URL) are required" });
 //     }
 
-//     // Handle secondaryImages as array or string
+//     // Validate category ID exists in Category collection
+//     const existingCategory = await Category.findById(category);
+//     if (!existingCategory) {
+//       return res.status(400).json({ message: "Invalid category ID" });
+//     }
+
+//     // Normalize secondaryImages
 //     let secondaryImagesArr = [];
 //     if (secondaryImages) {
 //       if (Array.isArray(secondaryImages)) {
@@ -181,7 +185,7 @@ export const changeProducerPassword = async (req, res) => {
 //         changedAt: new Date()
 //       }],
 //       description: String(description),
-//       category: String(category),
+//       category, // Save ObjectId directly
 //       addToSellPost: String(addToSellPost || 'no'),
 //       createdAt: new Date(),
 //       updatedAt: new Date()
@@ -189,14 +193,14 @@ export const changeProducerPassword = async (req, res) => {
 
 //     const savedProduct = await newProduct.save();
 
-//     res.status(201).json({ 
-//       message: "Product added successfully", 
-//       product: savedProduct 
+//     res.status(201).json({
+//       message: "Product added successfully",
+//       product: savedProduct
 //     });
 //   } catch (error) {
-//     res.status(500).json({ 
-//       message: "Server error", 
-//       error: error.message 
+//     res.status(500).json({
+//       message: "Server error",
+//       error: error.message
 //     });
 //   }
 // };
@@ -204,10 +208,13 @@ export const changeProducerPassword = async (req, res) => {
 export const addProduct = async (req, res) => {
   try {
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ message: 'Unauthorized: No user found in request' });
+      return res.status(401).json({
+        message: "Unauthorized: No user found in request",
+      });
     }
 
     const producerId = req.user._id;
+
     const {
       productName,
       quantity,
@@ -216,15 +223,17 @@ export const addProduct = async (req, res) => {
       category,
       addToSellPost,
       image,
-      secondaryImages
+      secondaryImages,
     } = req.body;
 
     // Validate required fields
     if (!productName || !quantity || !price || !description || !category || !image) {
-      return res.status(400).json({ message: "All fields (including image URL) are required" });
+      return res.status(400).json({
+        message: "All fields (including image URL) are required",
+      });
     }
 
-    // Validate category ID exists in Category collection
+    // Validate category exists
     const existingCategory = await Category.findById(category);
     if (!existingCategory) {
       return res.status(400).json({ message: "Invalid category ID" });
@@ -235,7 +244,7 @@ export const addProduct = async (req, res) => {
     if (secondaryImages) {
       if (Array.isArray(secondaryImages)) {
         secondaryImagesArr = secondaryImages;
-      } else if (typeof secondaryImages === 'string') {
+      } else if (typeof secondaryImages === "string") {
         secondaryImagesArr = [secondaryImages];
       }
     }
@@ -243,86 +252,140 @@ export const addProduct = async (req, res) => {
     const newProduct = new Product({
       producer: producerId,
       image: String(image),
-      secondaryImages: secondaryImagesArr.map(img => String(img)),
+      secondaryImages: secondaryImagesArr.map((img) => String(img)),
       productName: String(productName),
       quantity: String(quantity),
       price: String(price),
       previousPrice: String(price),
-      priceHistory: [{
-        price: String(price),
-        changedAt: new Date()
-      }],
+
+      priceHistory: [
+        {
+          price: String(price),
+          changedAt: new Date(),
+        },
+      ],
+
       description: String(description),
-      category, // Save ObjectId directly
-      addToSellPost: String(addToSellPost || 'no'),
+      category, // ObjectId
+
+      addToSellPost: addToSellPost ? String(addToSellPost) : "no",
+
+      // ✅ NEW SYSTEM FIELDS
+      status: "pending",
+      isSelling: false,
+      approvedBy: null,
+      approvedAt: null,
+
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
 
     const savedProduct = await newProduct.save();
 
     res.status(201).json({
-      message: "Product added successfully",
-      product: savedProduct
+      message: "Product added successfully and waiting for admin approval",
+      product: savedProduct,
     });
   } catch (error) {
     res.status(500).json({
       message: "Server error",
-      error: error.message
+      error: error.message,
     });
   }
 };
 
 
 // Get All Products for Producer
+// export const getAllProducts = async (req, res) => {
+//   try {
+//     // Get producer ID from the verified user
+//     const producerId = req.user._id; // Changed from req.user.id to req.user._id
+
+//     console.log('Producer ID:', producerId); // Debug log
+
+//     // Find all products that belong to this producer
+//     const products = await Product.find({ producer: producerId });
+    
+//     console.log('Found products:', products); // Debug log
+
+//     if (!products || products.length === 0) {
+//       return res.json({ 
+//         message: "No products found for this producer", 
+//         products: [] 
+//       });
+//     }
+
+//     res.json({ 
+//       message: "Products fetched successfully", 
+//       products 
+//     });
+//   } catch (error) {
+//     console.error('Error in getAllProducts:', error); // Debug log
+//     res.status(500).json({ 
+//       message: "Server error", 
+//       error: error.message 
+//     });
+//   }
+// };
+
 export const getAllProducts = async (req, res) => {
   try {
-    // Get producer ID from the verified user
-    const producerId = req.user._id; // Changed from req.user.id to req.user._id
+    const producerId = req.user._id;
 
-    console.log('Producer ID:', producerId); // Debug log
+    const products = await Product.find({ producer: producerId })
+      .populate("category", "name")
+      .sort({ createdAt: -1 });
 
-    // Find all products that belong to this producer
-    const products = await Product.find({ producer: producerId });
-    
-    console.log('Found products:', products); // Debug log
-
-    if (!products || products.length === 0) {
-      return res.json({ 
-        message: "No products found for this producer", 
-        products: [] 
-      });
-    }
-
-    res.json({ 
-      message: "Products fetched successfully", 
-      products 
+    res.json({
+      message: "Products fetched successfully",
+      products,
     });
   } catch (error) {
-    console.error('Error in getAllProducts:', error); // Debug log
-    res.status(500).json({ 
-      message: "Server error", 
-      error: error.message 
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
     });
   }
 };
 
 // Get Single Product by ID for Producer
+// export const getProductById = async (req, res) => {
+//   try {
+//     const producerId = req.user.id; // Get producer ID from token
+//     const { productId } = req.params;
+
+//     // Find product by ID and ensure it belongs to the producer
+//     const product = await Product.findOne({
+//       _id: productId,
+//       producer: producerId,
+//     });
+
+//     if (!product) {
+//       return res
+//         .status(404)
+//         .json({ message: "Product not found or not authorized" });
+//     }
+
+//     res.json({ message: "Product fetched successfully", product });
+//   } catch (error) {
+//     res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
+
 export const getProductById = async (req, res) => {
   try {
-    const producerId = req.user.id; // Get producer ID from token
+    const producerId = req.user._id;
     const { productId } = req.params;
 
-    // Find product by ID and ensure it belongs to the producer
     const product = await Product.findOne({
       _id: productId,
       producer: producerId,
-    });
+    }).populate("category", "name");
 
     if (!product) {
-      return res
-        .status(404)
-        .json({ message: "Product not found or not authorized" });
+      return res.status(404).json({
+        message: "Product not found or not authorized",
+      });
     }
 
     res.json({ message: "Product fetched successfully", product });
@@ -332,10 +395,114 @@ export const getProductById = async (req, res) => {
 };
 
 //update all product by id 
+// export const updateProductById = async (req, res) => {
+//   try {
+//     const producerId = req.user.id;
+//     const { productId } = req.params;
+//     const {
+//       productName,
+//       quantity,
+//       price,
+//       description,
+//       category,
+//       addToSellPost,
+//       image, // Accept as string
+//       secondaryImages // Accept as array of strings or string
+//     } = req.body;
+
+//     // Find product and ensure it belongs to the producer
+//     const product = await Product.findOne({
+//       _id: productId,
+//       producer: producerId,
+//     });
+
+//     if (!product) {
+//       return res.status(404).json({ 
+//         message: "Product not found or not authorized" 
+//       });
+//     }
+
+//     // Handle main image if provided (as string)
+//     if (image !== undefined) {
+//       if (typeof image !== 'string') {
+//         return res.status(400).json({ message: "Image must be a string (file path or URL)" });
+//       }
+//       product.image = String(image);
+//     }
+
+//     // Handle secondary images if provided (as array of strings or string)
+//     if (secondaryImages !== undefined) {
+//       let secondaryImagesArr = [];
+//       if (Array.isArray(secondaryImages)) {
+//         secondaryImagesArr = secondaryImages;
+//       } else if (typeof secondaryImages === 'string') {
+//         secondaryImagesArr = [secondaryImages];
+//       } else {
+//         return res.status(400).json({ message: "secondaryImages must be an array of strings or a string" });
+//       }
+//       product.secondaryImages = secondaryImagesArr.map(img => String(img));
+//     }
+
+//     // Update only provided fields with string conversion
+//     if (productName) product.productName = String(productName);
+//     if (quantity) product.quantity = String(quantity);
+    
+//     // Handle price update with history tracking
+//     if (price) {
+//       const newPrice = String(price);
+//       if (newPrice !== product.price) {
+//         // Store current price as previous before updating
+//         product.previousPrice = product.price;
+//         product.price = newPrice;
+        
+//         // Initialize priceHistory if it doesn't exist
+//         if (!product.priceHistory) {
+//           product.priceHistory = [];
+//         }
+        
+//         // Add to price history
+//         product.priceHistory.push({
+//           price: newPrice,
+//           changedAt: new Date()
+//         });
+//       }
+//     }
+    
+//     if (description) product.description = String(description);
+//     if (category) product.category = String(category);
+//     if (addToSellPost !== undefined) product.addToSellPost = String(addToSellPost);
+    
+//     // Update the updatedAt timestamp
+//     product.updatedAt = new Date();
+
+//     // Save the product and explicitly select all fields including previousPrice and priceHistory
+//     const updatedProduct = await product.save();
+
+//     // Return the complete product data
+//     res.json({
+//       message: "Product updated successfully",
+//       product: {
+//         ...updatedProduct.toObject(),
+//         previousPrice: updatedProduct.previousPrice || updatedProduct.price,
+//         priceHistory: updatedProduct.priceHistory || [{
+//           price: updatedProduct.price,
+//           changedAt: updatedProduct.updatedAt
+//         }]
+//       }
+//     });
+//   } catch (error) {
+//     res.status(500).json({ 
+//       message: "Server error", 
+//       error: error.message 
+//     });
+//   }
+// };
+
 export const updateProductById = async (req, res) => {
   try {
-    const producerId = req.user.id;
+    const producerId = req.user._id;
     const { productId } = req.params;
+
     const {
       productName,
       quantity,
@@ -343,94 +510,104 @@ export const updateProductById = async (req, res) => {
       description,
       category,
       addToSellPost,
-      image, // Accept as string
-      secondaryImages // Accept as array of strings or string
+      image,
+      secondaryImages,
     } = req.body;
 
-    // Find product and ensure it belongs to the producer
     const product = await Product.findOne({
       _id: productId,
       producer: producerId,
     });
 
     if (!product) {
-      return res.status(404).json({ 
-        message: "Product not found or not authorized" 
+      return res.status(404).json({
+        message: "Product not found or not authorized",
       });
     }
 
-    // Handle main image if provided (as string)
+    // ✅ If already approved, then update means admin approval required again
+    if (product.status === "approved") {
+      product.status = "pending";
+      product.approvedBy = null;
+      product.approvedAt = null;
+      product.isSelling = false;
+    }
+
+    // Handle main image
     if (image !== undefined) {
-      if (typeof image !== 'string') {
-        return res.status(400).json({ message: "Image must be a string (file path or URL)" });
+      if (typeof image !== "string") {
+        return res.status(400).json({
+          message: "Image must be a string (file path or URL)",
+        });
       }
       product.image = String(image);
     }
 
-    // Handle secondary images if provided (as array of strings or string)
+    // Handle secondary images
     if (secondaryImages !== undefined) {
       let secondaryImagesArr = [];
       if (Array.isArray(secondaryImages)) {
         secondaryImagesArr = secondaryImages;
-      } else if (typeof secondaryImages === 'string') {
+      } else if (typeof secondaryImages === "string") {
         secondaryImagesArr = [secondaryImages];
       } else {
-        return res.status(400).json({ message: "secondaryImages must be an array of strings or a string" });
+        return res.status(400).json({
+          message: "secondaryImages must be an array of strings or a string",
+        });
       }
-      product.secondaryImages = secondaryImagesArr.map(img => String(img));
+
+      product.secondaryImages = secondaryImagesArr.map((img) => String(img));
     }
 
-    // Update only provided fields with string conversion
+    // Update fields
     if (productName) product.productName = String(productName);
     if (quantity) product.quantity = String(quantity);
-    
-    // Handle price update with history tracking
+
+    // Price update with history
     if (price) {
       const newPrice = String(price);
+
       if (newPrice !== product.price) {
-        // Store current price as previous before updating
         product.previousPrice = product.price;
         product.price = newPrice;
-        
-        // Initialize priceHistory if it doesn't exist
+
         if (!product.priceHistory) {
           product.priceHistory = [];
         }
-        
-        // Add to price history
+
         product.priceHistory.push({
           price: newPrice,
-          changedAt: new Date()
+          changedAt: new Date(),
         });
       }
     }
-    
+
     if (description) product.description = String(description);
-    if (category) product.category = String(category);
-    if (addToSellPost !== undefined) product.addToSellPost = String(addToSellPost);
-    
-    // Update the updatedAt timestamp
+
+    if (category) {
+      const existingCategory = await Category.findById(category);
+      if (!existingCategory) {
+        return res.status(400).json({ message: "Invalid category ID" });
+      }
+      product.category = category;
+    }
+
+    if (addToSellPost !== undefined) {
+      product.addToSellPost = String(addToSellPost);
+    }
+
     product.updatedAt = new Date();
 
-    // Save the product and explicitly select all fields including previousPrice and priceHistory
     const updatedProduct = await product.save();
 
-    // Return the complete product data
     res.json({
-      message: "Product updated successfully",
-      product: {
-        ...updatedProduct.toObject(),
-        previousPrice: updatedProduct.previousPrice || updatedProduct.price,
-        priceHistory: updatedProduct.priceHistory || [{
-          price: updatedProduct.price,
-          changedAt: updatedProduct.updatedAt
-        }]
-      }
+      message: "Product updated successfully (waiting for admin approval again)",
+      product: updatedProduct,
     });
   } catch (error) {
-    res.status(500).json({ 
-      message: "Server error", 
-      error: error.message 
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
     });
   }
 };
@@ -438,7 +615,7 @@ export const updateProductById = async (req, res) => {
 // Delete Product by ID
 export const deleteProductById = async (req, res) => {
   try {
-    const producerId = req.user.id;
+    const producerId = req.user._id;
     const { productId } = req.params;
 
     // Find product and ensure it belongs to the producer

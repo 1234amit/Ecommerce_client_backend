@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import User from "../../models/User.js";
+import Product from "../../models/Product.js";
 
 // Get Wholesaler Profile
 export const getWholesalerProfile = async (req, res) => {
@@ -127,6 +128,65 @@ export const changeWholesalerPassword = async (req, res) => {
 
     res.json({ message: "Password changed successfully" });
   } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+// ✅ Get All Approved Products (For Wholesaler)
+export const getApprovedProductsForWholesaler = async (req, res) => {
+  try {
+    if (req.user.role !== "wholesaler") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const products = await Product.find({ status: "approved" })
+      .populate("producer", "name email phone")
+      .populate("category", "name")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      message: "Approved products fetched successfully",
+      products,
+    });
+  } catch (error) {
+    console.error("Error fetching approved products:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+// ✅ Wholesaler makes product available for consumer (Sell Product)
+export const wholesalerSellProduct = async (req, res) => {
+  try {
+    if (req.user.role !== "wholesaler") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const { productId } = req.params;
+
+    const product = await Product.findById(productId);
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Must be approved first
+    if (product.status !== "approved") {
+      return res.status(400).json({ message: "Product is not approved yet" });
+    }
+
+    product.isSelling = true;
+    product.updatedAt = new Date();
+
+    await product.save();
+
+    res.json({
+      message: "Product is now available for consumers",
+      product,
+    });
+  } catch (error) {
+    console.error("Error selling product:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };

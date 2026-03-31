@@ -18,6 +18,11 @@ const notificationSchema = new mongoose.Schema(
         // Product notifications
         "product_deletion_started", 
         "product_deletion_completed",
+
+            // ✅ ADD THESE TWO
+        "product_approved",
+        "product_rejected",
+
         // Chat notifications
         "new_message",
         "chat_assigned",
