@@ -130,7 +130,7 @@ export const changeSupersalerPassword = async (req, res) => {
 // ✅ Get All Approved Products (For Superseller)
 export const getApprovedProductsForSuperseller = async (req, res) => {
   try {
-    if (req.user.role !== "superseller") {
+    if (req.user.role !== "supersaler") {
       return res.status(403).json({ message: "Unauthorized access" });
     }
 
@@ -154,7 +154,7 @@ export const getApprovedProductsForSuperseller = async (req, res) => {
 // ✅ Superseller makes product available for consumer (Sell Product)
 export const supersellerSellProduct = async (req, res) => {
   try {
-    if (req.user.role !== "superseller") {
+    if (req.user.role !== "supersaler") {
       return res.status(403).json({ message: "Unauthorized access" });
     }
 

@@ -5,6 +5,7 @@ import {
   changeSupersalerPassword,
   getApprovedProductsForSuperseller,
   getSupersalerProfile,
+  supersellerSellProduct,
   updateSupersalerProfile,
   updateSupersalerProfileImage,
 } from "../../controllers/superseller/superSellerController.js";
@@ -61,6 +62,7 @@ router.put(
 
 router.get("/products/approved", verifyToken, verifySuperSeller, getApprovedProductsForSuperseller);
 
+router.put("/products/sell/:productId", verifyToken, verifySuperSeller, supersellerSellProduct);
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {
