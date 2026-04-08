@@ -59,7 +59,7 @@ app.use(
       "https://krishi-ghar-admin.vercel.app",
       "https://krishi-test-frontend.vercel.app",
       "https://ecom-krishi-test.vercel.app",
-      "https://admin.krishighar.com/"
+      "https://admin.krishighar.com"
     ],
     credentials: true, // Allow cookies
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
