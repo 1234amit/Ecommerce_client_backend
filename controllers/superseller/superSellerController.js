@@ -152,6 +152,40 @@ export const getApprovedProductsForSuperseller = async (req, res) => {
 
 
 // ✅ Superseller makes product available for consumer (Sell Product)
+// export const supersellerSellProduct = async (req, res) => {
+//   try {
+//     if (req.user.role !== "supersaler") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     const { productId } = req.params;
+
+//     const product = await Product.findById(productId);
+
+//     if (!product) {
+//       return res.status(404).json({ message: "Product not found" });
+//     }
+
+//     // Must be approved first
+//     if (product.status !== "approved") {
+//       return res.status(400).json({ message: "Product is not approved yet" });
+//     }
+
+//     product.isSelling = true;
+//     product.updatedAt = new Date();
+
+//     await product.save();
+
+//     res.json({
+//       message: "Product is now available for consumers",
+//       product,
+//     });
+//   } catch (error) {
+//     console.error("Error selling product:", error);
+//     res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
+
 export const supersellerSellProduct = async (req, res) => {
   try {
     if (req.user.role !== "supersaler") {
@@ -171,13 +205,23 @@ export const supersellerSellProduct = async (req, res) => {
       return res.status(400).json({ message: "Product is not approved yet" });
     }
 
+    // If already selling request sent
+    if (product.isSelling === true) {
+      return res.status(400).json({ message: "Product already sent for selling request" });
+    }
+
+    // ✅ Set selling info
     product.isSelling = true;
+    product.sellingBy = req.user.id;
+    product.sellingRole = "supersaler";
+    product.sellingConfirmedByProducer = false;
+    product.sellingConfirmedAt = null;
     product.updatedAt = new Date();
 
     await product.save();
 
     res.json({
-      message: "Product is now available for consumers",
+      message: "Selling request sent to producer successfully",
       product,
     });
   } catch (error) {

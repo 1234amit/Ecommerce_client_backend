@@ -62,8 +62,9 @@ router.put(
 
 router.get("/products/approved", verifyToken, verifyWholesaler, getApprovedProductsForWholesaler);
 
-router.put("/products/sell/:productId", verifyToken, verifyWholesaler, wholesalerSellProduct);
+// router.put("/products/sell/:productId", verifyToken, verifyWholesaler, wholesalerSellProduct);
 
+router.put("/products/sell/:productId", verifyToken, verifyWholesaler, wholesalerSellProduct);
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {

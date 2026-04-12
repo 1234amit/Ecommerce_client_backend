@@ -295,39 +295,6 @@ export const addProduct = async (req, res) => {
 };
 
 
-// Get All Products for Producer
-// export const getAllProducts = async (req, res) => {
-//   try {
-//     // Get producer ID from the verified user
-//     const producerId = req.user._id; // Changed from req.user.id to req.user._id
-
-//     console.log('Producer ID:', producerId); // Debug log
-
-//     // Find all products that belong to this producer
-//     const products = await Product.find({ producer: producerId });
-    
-//     console.log('Found products:', products); // Debug log
-
-//     if (!products || products.length === 0) {
-//       return res.json({ 
-//         message: "No products found for this producer", 
-//         products: [] 
-//       });
-//     }
-
-//     res.json({ 
-//       message: "Products fetched successfully", 
-//       products 
-//     });
-//   } catch (error) {
-//     console.error('Error in getAllProducts:', error); // Debug log
-//     res.status(500).json({ 
-//       message: "Server error", 
-//       error: error.message 
-//     });
-//   }
-// };
-
 export const getAllProducts = async (req, res) => {
   try {
     const producerId = req.user._id;
@@ -348,29 +315,6 @@ export const getAllProducts = async (req, res) => {
   }
 };
 
-// Get Single Product by ID for Producer
-// export const getProductById = async (req, res) => {
-//   try {
-//     const producerId = req.user.id; // Get producer ID from token
-//     const { productId } = req.params;
-
-//     // Find product by ID and ensure it belongs to the producer
-//     const product = await Product.findOne({
-//       _id: productId,
-//       producer: producerId,
-//     });
-
-//     if (!product) {
-//       return res
-//         .status(404)
-//         .json({ message: "Product not found or not authorized" });
-//     }
-
-//     res.json({ message: "Product fetched successfully", product });
-//   } catch (error) {
-//     res.status(500).json({ message: "Server error", error: error.message });
-//   }
-// };
 
 export const getProductById = async (req, res) => {
   try {
@@ -394,109 +338,6 @@ export const getProductById = async (req, res) => {
   }
 };
 
-//update all product by id 
-// export const updateProductById = async (req, res) => {
-//   try {
-//     const producerId = req.user.id;
-//     const { productId } = req.params;
-//     const {
-//       productName,
-//       quantity,
-//       price,
-//       description,
-//       category,
-//       addToSellPost,
-//       image, // Accept as string
-//       secondaryImages // Accept as array of strings or string
-//     } = req.body;
-
-//     // Find product and ensure it belongs to the producer
-//     const product = await Product.findOne({
-//       _id: productId,
-//       producer: producerId,
-//     });
-
-//     if (!product) {
-//       return res.status(404).json({ 
-//         message: "Product not found or not authorized" 
-//       });
-//     }
-
-//     // Handle main image if provided (as string)
-//     if (image !== undefined) {
-//       if (typeof image !== 'string') {
-//         return res.status(400).json({ message: "Image must be a string (file path or URL)" });
-//       }
-//       product.image = String(image);
-//     }
-
-//     // Handle secondary images if provided (as array of strings or string)
-//     if (secondaryImages !== undefined) {
-//       let secondaryImagesArr = [];
-//       if (Array.isArray(secondaryImages)) {
-//         secondaryImagesArr = secondaryImages;
-//       } else if (typeof secondaryImages === 'string') {
-//         secondaryImagesArr = [secondaryImages];
-//       } else {
-//         return res.status(400).json({ message: "secondaryImages must be an array of strings or a string" });
-//       }
-//       product.secondaryImages = secondaryImagesArr.map(img => String(img));
-//     }
-
-//     // Update only provided fields with string conversion
-//     if (productName) product.productName = String(productName);
-//     if (quantity) product.quantity = String(quantity);
-    
-//     // Handle price update with history tracking
-//     if (price) {
-//       const newPrice = String(price);
-//       if (newPrice !== product.price) {
-//         // Store current price as previous before updating
-//         product.previousPrice = product.price;
-//         product.price = newPrice;
-        
-//         // Initialize priceHistory if it doesn't exist
-//         if (!product.priceHistory) {
-//           product.priceHistory = [];
-//         }
-        
-//         // Add to price history
-//         product.priceHistory.push({
-//           price: newPrice,
-//           changedAt: new Date()
-//         });
-//       }
-//     }
-    
-//     if (description) product.description = String(description);
-//     if (category) product.category = String(category);
-//     if (addToSellPost !== undefined) product.addToSellPost = String(addToSellPost);
-    
-//     // Update the updatedAt timestamp
-//     product.updatedAt = new Date();
-
-//     // Save the product and explicitly select all fields including previousPrice and priceHistory
-//     const updatedProduct = await product.save();
-
-//     // Return the complete product data
-//     res.json({
-//       message: "Product updated successfully",
-//       product: {
-//         ...updatedProduct.toObject(),
-//         previousPrice: updatedProduct.previousPrice || updatedProduct.price,
-//         priceHistory: updatedProduct.priceHistory || [{
-//           price: updatedProduct.price,
-//           changedAt: updatedProduct.updatedAt
-//         }]
-//       }
-//     });
-//   } catch (error) {
-//     res.status(500).json({ 
-//       message: "Server error", 
-//       error: error.message 
-//     });
-//   }
-// };
 
 export const updateProductById = async (req, res) => {
   try {
@@ -751,26 +592,6 @@ export const getUnreadNotificationsCount = async (req, res) => {
 };
 
 
-// controllers/categoryController.js
-
-
-// Create new category
-// export const createCategory = async (req, res) => {
-//   try {
-//     const { name, icon } = req.body;
-
-//     if (!name) {
-//       return res.status(400).json({ message: "Category name is required" });
-//     }
-
-//     const category = new Category({ name, icon });
-//     await category.save();
-
-//     res.status(201).json({ message: "Category created", category });
-//   } catch (err) {
-//     res.status(500).json({ message: "Server error", error: err.message });
-//   }
-// };
 
 // controllers/categoryController.js
 
@@ -804,6 +625,65 @@ export const getAllCategories = async (req, res) => {
     res.json({ message: "Categories fetched", categories });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+
+// get selling requests for producer
+
+export const getSellingRequestsForProducer = async (req, res) => {
+  try {
+    const producerId = req.user._id;
+
+    const products = await Product.find({
+      producer: producerId,
+      isSelling: true,
+      sellingConfirmedByProducer: false,
+    })
+      .populate("sellingBy", "name email phone role")
+      .populate("category", "name")
+      .sort({ updatedAt: -1 });
+
+    res.json({
+      message: "Selling requests fetched successfully",
+      products,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+// confirm selling requests
+
+export const confirmSellingRequest = async (req, res) => {
+  try {
+    const producerId = req.user._id;
+    const { productId } = req.params;
+
+    const product = await Product.findOne({
+      _id: productId,
+      producer: producerId,
+      isSelling: true,
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Product not found or not authorized",
+      });
+    }
+
+    product.sellingConfirmedByProducer = true;
+    product.sellingConfirmedAt = new Date();
+
+    await product.save();
+
+    res.json({
+      message: "Selling confirmed successfully. Now consumer can see this product.",
+      product,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 

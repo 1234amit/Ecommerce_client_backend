@@ -2,12 +2,14 @@ import express from "express";
 import {
   addProduct,
   changeProducerPassword,
+  confirmSellingRequest,
   createCategory,
   deleteProductById,
   getAllCategories,
   getAllProducts,
   getProducerProfile,
   getProductById,
+  getSellingRequestsForProducer,
   updateProducerProfile,
   updateProducerProfileImage,
   updateProductById,
@@ -114,6 +116,10 @@ router.delete(
   verifyProducer,
   deleteProductById
 );
+
+router.get("/selling-requests", verifyToken,verifyProducer, getSellingRequestsForProducer);
+
+router.put("/confirm-selling/:productId", verifyToken, verifyProducer, confirmSellingRequest);
 
 // Notification routes
 router.use('/notifications', notificationRoutes);
