@@ -4,6 +4,8 @@ import { verifyWholesaler } from "../../middleware/wholeseller/verifyWholesaler.
 import {
   changeWholesalerPassword,
   getApprovedProductsForWholesaler,
+  // getBulkPosts,
+  getBulkPostsForWholesaler,
   getWholesalerProfile,
   updateWholesalerProfile,
   updateWholesalerProfileImage,
@@ -11,6 +13,7 @@ import {
 } from "../../controllers/wholeseller/wholesalerController.js";
 import multer from "multer";
 import path from 'path';
+import { verifyTokenwholesaler } from "../../middleware/wholeseller/verifyTokenwholesaler.js";
 
 const router = express.Router();
 
@@ -65,6 +68,12 @@ router.get("/products/approved", verifyToken, verifyWholesaler, getApprovedProdu
 // router.put("/products/sell/:productId", verifyToken, verifyWholesaler, wholesalerSellProduct);
 
 router.put("/products/sell/:productId", verifyToken, verifyWholesaler, wholesalerSellProduct);
+
+// get bulk post
+router.get("/bulk-posts", verifyTokenwholesaler, getBulkPostsForWholesaler);
+
+
+
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {

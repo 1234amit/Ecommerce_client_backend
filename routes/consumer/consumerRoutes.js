@@ -13,6 +13,7 @@ import {
 import { verifyToken } from "../../middleware/consumer/verifyToken.js";
 import multer from "multer";
 import path from 'path';
+import { getRetailPostsForConsumer } from "../../controllers/consumer/getRetailPostsForConsumer.js";
 
 const router = express.Router();
 
@@ -67,6 +68,9 @@ router.get("/products", verifyToken, viewAllProducts);
 router.get("/products/:productId", verifyToken, viewSingleProduct);
 
 router.get("/products", verifyToken, getProductsForConsumer);
+
+router.get("/retail-posts", verifyToken, getRetailPostsForConsumer);
+
 
 
 // Error handling middleware for multer

@@ -4,6 +4,7 @@ import { verifyToken } from "../../middleware/verifyToken.js";
 import {
   changeSupersalerPassword,
   getApprovedProductsForSuperseller,
+  getBulkPosts,
   getSupersalerProfile,
   supersellerSellProduct,
   updateSupersalerProfile,
@@ -11,6 +12,7 @@ import {
 } from "../../controllers/superseller/superSellerController.js";
 import multer from "multer";
 import path from 'path';
+import { createSellPost } from "../../controllers/superseller/sellPostController.js";
 
 const router = express.Router();
 
@@ -63,6 +65,17 @@ router.put(
 router.get("/products/approved", verifyToken, verifySuperSeller, getApprovedProductsForSuperseller);
 
 router.put("/products/sell/:productId", verifyToken, verifySuperSeller, supersellerSellProduct);
+
+// new 
+router.post("/sell-post/create",verifyToken, verifySuperSeller, createSellPost);
+
+// router.get("/my-sell-posts", verifyToken, verifySuperSeller, getMySellPosts);
+
+router.get("/bulk-posts", verifyToken, verifySuperSeller, getBulkPosts);
+
+
+
+
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {

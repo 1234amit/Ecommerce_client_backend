@@ -41,6 +41,7 @@ import {
   getProductDetailsByAdmin,
   approveProduct,
   rejectProduct,
+  getAllSellPostsForAdmin,
 } from "../../controllers/admin/adminController.js";
 import multer from "multer";
 import path from 'path';
@@ -210,6 +211,15 @@ router.get("/products/:productId", verifyToken, verifyAdmin, getProductDetailsBy
 
 router.put("/products/approve/:productId", verifyToken, verifyAdmin, approveProduct);
 router.put("/products/reject/:productId", verifyToken, verifyAdmin, rejectProduct);
+
+//get all sell post by admin
+
+
+router.get("/sell-posts", verifyToken,verifyAdmin,  getAllSellPostsForAdmin);
+
+
+
+
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {

@@ -128,16 +128,48 @@ export const changeSupersalerPassword = async (req, res) => {
 // import Product from "../../models/Product.js";
 
 // ✅ Get All Approved Products (For Superseller)
+
 export const getApprovedProductsForSuperseller = async (req, res) => {
   try {
     if (req.user.role !== "supersaler") {
       return res.status(403).json({ message: "Unauthorized access" });
     }
 
-    const products = await Product.find({ status: "approved" })
-      .populate("producer", "name email phone")
-      .populate("category", "name")
-      .sort({ createdAt: -1 });
+    const supersalerDistrict = req.user.district;
+    const supersalerThana = req.user.thana;
+
+    const products = await Product.aggregate([
+      { $match: { status: "approved" } },
+
+      {
+        $lookup: {
+          from: "users",
+          localField: "producer",
+          foreignField: "_id",
+          as: "producer",
+        },
+      },
+      { $unwind: "$producer" },
+
+      {
+        $match: {
+          "producer.district": supersalerDistrict,
+          "producer.thana": supersalerThana,
+        },
+      },
+
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: "$category" },
+
+      { $sort: { createdAt: -1 } },
+    ]);
 
     res.json({
       message: "Approved products fetched successfully",
@@ -148,6 +180,8 @@ export const getApprovedProductsForSuperseller = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+
 
 
 
@@ -229,3 +263,33 @@ export const supersellerSellProduct = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+
+
+
+// getBulkPosts 
+
+export const getBulkPosts = async (req, res) => {
+  try {
+    if (req.user.role !== "wholesaler" && req.user.role !== "supersaler") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const posts = await SellPost.find({
+      sellType: "bulk",
+      isActive: true,
+      district: req.user.district,
+      thana: req.user.thana,
+    })
+      .populate("product", "productName image category")
+      .populate("seller", "name phone")
+      .sort({ createdAt: -1 });
+
+    res.json({ message: "Bulk posts fetched", posts });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+

@@ -205,12 +205,99 @@ export const changeProducerPassword = async (req, res) => {
 //   }
 // };
 
+// export const addProduct = async (req, res) => {
+//   try {
+//     if (!req.user || !req.user._id) {
+//       return res.status(401).json({
+//         message: "Unauthorized: No user found in request",
+//       });
+//     }
+
+//     const producerId = req.user._id;
+
+//     const {
+//       productName,
+//       quantity,
+//       price,
+//       description,
+//       category,
+//       addToSellPost,
+//       image,
+//       secondaryImages,
+//     } = req.body;
+
+//     // Validate required fields
+//     if (!productName || !quantity || !price || !description || !category || !image) {
+//       return res.status(400).json({
+//         message: "All fields (including image URL) are required",
+//       });
+//     }
+
+//     // Validate category exists
+//     const existingCategory = await Category.findById(category);
+//     if (!existingCategory) {
+//       return res.status(400).json({ message: "Invalid category ID" });
+//     }
+
+//     // Normalize secondaryImages
+//     let secondaryImagesArr = [];
+//     if (secondaryImages) {
+//       if (Array.isArray(secondaryImages)) {
+//         secondaryImagesArr = secondaryImages;
+//       } else if (typeof secondaryImages === "string") {
+//         secondaryImagesArr = [secondaryImages];
+//       }
+//     }
+
+//     const newProduct = new Product({
+//       producer: producerId,
+//       image: String(image),
+//       secondaryImages: secondaryImagesArr.map((img) => String(img)),
+//       productName: String(productName),
+//       quantity: String(quantity),
+//       price: String(price),
+//       previousPrice: String(price),
+
+//       priceHistory: [
+//         {
+//           price: String(price),
+//           changedAt: new Date(),
+//         },
+//       ],
+
+//       description: String(description),
+//       category, // ObjectId
+
+//       addToSellPost: addToSellPost ? String(addToSellPost) : "no",
+
+//       // ✅ NEW SYSTEM FIELDS
+//       status: "pending",
+//       isSelling: false,
+//       approvedBy: null,
+//       approvedAt: null,
+
+//       createdAt: new Date(),
+//       updatedAt: new Date(),
+//     });
+
+//     const savedProduct = await newProduct.save();
+
+//     res.status(201).json({
+//       message: "Product added successfully and waiting for admin approval",
+//       product: savedProduct,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const addProduct = async (req, res) => {
   try {
     if (!req.user || !req.user._id) {
-      return res.status(401).json({
-        message: "Unauthorized: No user found in request",
-      });
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
     const producerId = req.user._id;
@@ -218,7 +305,9 @@ export const addProduct = async (req, res) => {
     const {
       productName,
       quantity,
+      unit,
       price,
+      priceType,
       description,
       category,
       addToSellPost,
@@ -226,71 +315,94 @@ export const addProduct = async (req, res) => {
       secondaryImages,
     } = req.body;
 
-    // Validate required fields
-    if (!productName || !quantity || !price || !description || !category || !image) {
-      return res.status(400).json({
-        message: "All fields (including image URL) are required",
-      });
+    if (
+      !productName ||
+      !quantity ||
+      !unit ||
+      !price ||
+      !priceType ||
+      !description ||
+      !category ||
+      !image
+    ) {
+      return res.status(400).json({ message: "All fields are required" });
     }
 
-    // Validate category exists
     const existingCategory = await Category.findById(category);
     if (!existingCategory) {
       return res.status(400).json({ message: "Invalid category ID" });
     }
 
-    // Normalize secondaryImages
     let secondaryImagesArr = [];
     if (secondaryImages) {
-      if (Array.isArray(secondaryImages)) {
-        secondaryImagesArr = secondaryImages;
-      } else if (typeof secondaryImages === "string") {
-        secondaryImagesArr = [secondaryImages];
-      }
+      if (Array.isArray(secondaryImages)) secondaryImagesArr = secondaryImages;
+      else if (typeof secondaryImages === "string") secondaryImagesArr = [secondaryImages];
+    }
+
+    const qty = Number(quantity);
+    const inputPrice = Number(price);
+
+    if (isNaN(qty) || isNaN(inputPrice)) {
+      return res.status(400).json({ message: "Quantity and price must be valid numbers" });
+    }
+
+    // convert to kg
+    let quantityInKg = qty;
+    if (unit === "ton") {
+      quantityInKg = qty * 1000;
+    }
+
+    let totalPrice = 0;
+    let pricePerKg = 0;
+
+    if (priceType === "per_unit") {
+      // price means per kg
+      pricePerKg = inputPrice;
+      totalPrice = quantityInKg * pricePerKg;
+    } else if (priceType === "total") {
+      // price means total
+      totalPrice = inputPrice;
+      pricePerKg = totalPrice / quantityInKg;
+    } else {
+      return res.status(400).json({ message: "Invalid priceType" });
     }
 
     const newProduct = new Product({
       producer: producerId,
       image: String(image),
-      secondaryImages: secondaryImagesArr.map((img) => String(img)),
+      secondaryImages: secondaryImagesArr.map(String),
       productName: String(productName),
-      quantity: String(quantity),
-      price: String(price),
-      previousPrice: String(price),
 
-      priceHistory: [
-        {
-          price: String(price),
-          changedAt: new Date(),
-        },
-      ],
+      quantity: qty,
+      unit,
+      price: inputPrice,
+      priceType,
+
+      totalPrice,
+      pricePerKg,
+
+      previousPrice: inputPrice,
+      priceHistory: [{ price: inputPrice, changedAt: new Date() }],
 
       description: String(description),
-      category, // ObjectId
+      category,
 
       addToSellPost: addToSellPost ? String(addToSellPost) : "no",
 
-      // ✅ NEW SYSTEM FIELDS
       status: "pending",
       isSelling: false,
       approvedBy: null,
       approvedAt: null,
-
-      createdAt: new Date(),
-      updatedAt: new Date(),
     });
 
     const savedProduct = await newProduct.save();
 
     res.status(201).json({
-      message: "Product added successfully and waiting for admin approval",
+      message: "Product added successfully",
       product: savedProduct,
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 

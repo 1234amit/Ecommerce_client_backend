@@ -1167,3 +1167,24 @@ export const getAllProductsAdmin = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+
+//get all sell posts by admin
+
+export const getAllSellPostsForAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const posts = await SellPost.find()
+      .populate("product", "productName")
+      .populate("seller", "name phone role")
+      .populate("producer", "name phone")
+      .sort({ createdAt: -1 });
+
+    res.json({ message: "All sell posts fetched", posts });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

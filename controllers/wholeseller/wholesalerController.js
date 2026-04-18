@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import User from "../../models/User.js";
 import Product from "../../models/Product.js";
+import SellPost from "../../models/SellPost.js";
 
 // Get Wholesaler Profile
 export const getWholesalerProfile = async (req, res) => {
@@ -234,3 +235,122 @@ export const wholesalerSellProduct = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+
+// get bulk post
+
+// export const getBulkPosts = async (req, res) => {
+//   try {
+//     if (req.user.role !== "wholesaler" && req.user.role !== "supersaler") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     const posts = await SellPost.find({
+//       sellType: "bulk",
+//       isActive: true,
+//       district: req.user.district,
+//       thana: req.user.thana,
+//     })
+//       .populate("product", "productName image category")
+//       .populate("seller", "name phone")
+//       .sort({ createdAt: -1 });
+
+//     res.json({ message: "Bulk posts fetched", posts });
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
+
+// export const getBulkPostsForWholesaler = async (req, res) => {
+//   try {
+//     // ✅ Role Check
+//     if (req.user.role !== "wholesaler") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     // ✅ district & thana validation
+//     const wholesalerDistrict = req.user.district?.trim();
+//     const wholesalerThana = req.user.thana?.trim();
+
+//     if (!wholesalerDistrict || !wholesalerThana) {
+//       return res.status(400).json({
+//         message: "Wholesaler district and thana are required",
+//       });
+//     }
+
+//     // ✅ Debug logs (keep for testing)
+//     console.log("WHOLESALER DISTRICT:", wholesalerDistrict);
+//     console.log("WHOLESALER THANA:", wholesalerThana);
+
+//     // ✅ Case-insensitive match using regex
+//     const posts = await SellPost.find({
+//       sellType: "bulk",
+//       isActive: true,
+//       district: { $regex: new RegExp("^" + wholesalerDistrict + "$", "i") },
+//       thana: { $regex: new RegExp("^" + wholesalerThana + "$", "i") },
+//     })
+//       .populate("product", "productName image category pricePerKg priceType unit")
+//       .populate("seller", "name phone district thana role")
+//       .populate("producer", "name phone district thana role")
+//       .sort({ createdAt: -1 });
+
+//     res.status(200).json({
+//       message: "Bulk posts fetched successfully",
+//       totalPosts: posts.length,
+//       posts,
+//     });
+//   } catch (error) {
+//     console.error("Error fetching bulk posts:", error);
+//     res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+
+
+// GET bulk posts for wholesaler (FIXED & ROBUST)
+export const getBulkPostsForWholesaler = async (req, res) => {
+  try {
+    if (req.user.role !== "wholesaler") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const userDistrict = req.user.district?.trim().toLowerCase();
+    const userThana = req.user.thana?.trim().toLowerCase();
+
+    const posts = await SellPost.find({
+      sellType: "bulk",
+      isActive: true,
+    });
+
+    const filtered = posts.filter((p) => {
+      const district =
+        (p.district || p.seller?.district || p.producer?.district)
+          ?.trim()
+          .toLowerCase();
+
+      const thana =
+        (p.thana || p.seller?.thana || p.producer?.thana)
+          ?.trim()
+          .toLowerCase();
+
+      return district === userDistrict && thana === userThana;
+    });
+
+    return res.json({
+      message: "Bulk posts fetched successfully",
+      totalFound: filtered.length,
+      posts: filtered,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
