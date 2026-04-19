@@ -4,7 +4,8 @@ import { verifyToken } from "../../middleware/verifyToken.js";
 import {
   changeSupersalerPassword,
   getApprovedProductsForSuperseller,
-  getBulkPosts,
+  // getBulkPosts,
+  getBulkPostsForSupersaler,
   getSupersalerProfile,
   supersellerSellProduct,
   updateSupersalerProfile,
@@ -13,6 +14,8 @@ import {
 import multer from "multer";
 import path from 'path';
 import { createSellPost } from "../../controllers/superseller/sellPostController.js";
+import { addToCart, getCart, sslSuccess } from "../../controllers/superseller/cartController.js";
+import { initCheckoutSSL } from "../../controllers/superseller/sslCommarceController.js";
 
 const router = express.Router();
 
@@ -71,9 +74,37 @@ router.post("/sell-post/create",verifyToken, verifySuperSeller, createSellPost);
 
 // router.get("/my-sell-posts", verifyToken, verifySuperSeller, getMySellPosts);
 
-router.get("/bulk-posts", verifyToken, verifySuperSeller, getBulkPosts);
+// router.get("/bulk-posts", verifyToken, verifySuperSeller, getBulkPosts);
+
+router.get("/bulk-posts", verifyToken, verifySuperSeller, getBulkPostsForSupersaler);
+
+router.post("/add", verifyToken, verifySuperSeller, addToCart);
+router.get("/", verifyToken, verifySuperSeller, getCart);
+// router.post("/checkout", verifyToken, verifySuperSeller, checkoutCart);
+
+router.post("/cart/checkout/init", verifyToken, verifySuperSeller, initCheckoutSSL);
 
 
+// ➤ SUCCESS CALLBACK (SSLCommerz hits this)
+router.post("/ssl-success", sslSuccess);
+
+
+// ➤ FAIL CALLBACK
+router.post("/ssl-fail", (req, res) => {
+  return res.json({
+    message: "Payment failed",
+    data: req.body
+  });
+});
+
+
+// ➤ CANCEL CALLBACK
+router.post("/ssl-cancel", (req, res) => {
+  return res.json({
+    message: "Payment cancelled",
+    data: req.body
+  });
+});
 
 
 

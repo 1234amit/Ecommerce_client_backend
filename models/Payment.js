@@ -4,7 +4,8 @@ const PaymentSchema = new mongoose.Schema(
   {
     paymentId: { type: String, required: true, unique: true, index: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
+    // orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
+    orderId: { type: String, required: true, index: true },
 
     method: {
       type: String,

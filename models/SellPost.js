@@ -110,6 +110,27 @@ const sellPostSchema = new mongoose.Schema(
 );
 
 // auto calculate total price + commission
+// sellPostSchema.pre("save", function (next) {
+//   let qtyInKg = this.quantity;
+
+//   if (this.unit === "ton") {
+//     qtyInKg = this.quantity * 1000;
+//   }
+
+//   this.increasedAmountPerKg = this.sellingPricePerKg - this.basePricePerKg;
+
+//   if (this.increasedAmountPerKg < 0) {
+//     this.increasedAmountPerKg = 0;
+//   }
+
+//   this.commissionAmountPerKg =
+//     (this.sellingPricePerKg * this.commissionPercent) / 100;
+
+//   this.totalPrice = qtyInKg * this.sellingPricePerKg;
+//   this.totalCommission = qtyInKg * this.commissionAmountPerKg;
+
+//   next();
+
 sellPostSchema.pre("save", function (next) {
   let qtyInKg = this.quantity;
 
@@ -123,10 +144,12 @@ sellPostSchema.pre("save", function (next) {
     this.increasedAmountPerKg = 0;
   }
 
+  // 🔥 commission calculation
   this.commissionAmountPerKg =
     (this.sellingPricePerKg * this.commissionPercent) / 100;
 
   this.totalPrice = qtyInKg * this.sellingPricePerKg;
+
   this.totalCommission = qtyInKg * this.commissionAmountPerKg;
 
   next();

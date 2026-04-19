@@ -1,4 +1,5 @@
 import Product from "../../models/Product.js";
+import SellPost from "../../models/SellPost.js";
 import User from "../../models/User.js";
 import bcrypt from "bcryptjs";
 
@@ -288,6 +289,50 @@ export const getBulkPosts = async (req, res) => {
     res.json({ message: "Bulk posts fetched", posts });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+
+
+// import SellPost from "../../models/SellPost.js";
+
+export const getBulkPostsForSupersaler = async (req, res) => {
+  try {
+    if (req.user.role !== "supersaler") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const userDistrict = req.user.district?.trim().toLowerCase();
+    const userThana = req.user.thana?.trim().toLowerCase();
+
+    if (!userDistrict || !userThana) {
+      return res.status(400).json({
+        message: "User district and thana missing",
+      });
+    }
+
+    const posts = await SellPost.find({
+      sellType: "bulk",
+      isActive: true,
+      visibility: "all",
+      district: { $regex: new RegExp(`^${userDistrict}$`, "i") },
+      thana: { $regex: new RegExp(`^${userThana}$`, "i") },
+    })
+      .populate("product", "productName image pricePerKg unit")
+      .populate("seller", "name phone district thana role")
+      .populate("producer", "name phone district thana role")
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      message: "Bulk posts fetched successfully for supersaler",
+      totalFound: posts.length,
+      posts,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };
 
