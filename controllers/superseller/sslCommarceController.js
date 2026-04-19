@@ -224,17 +224,17 @@ export const initCheckoutSSL = async (req, res) => {
 
     params.append(
       "success_url",
-      "http://localhost:4000/api/v1/supersaler/ssl-success"
+      "https://ecommerce-client-backend-1.onrender.com/api/v1/supersaler/ssl-success"
     );
 
     params.append(
       "fail_url",
-      "http://localhost:4000/api/v1/supersaler/ssl-fail"
+      "https://ecommerce-client-backend-1.onrender.com/api/v1/supersaler/ssl-fail"
     );
 
     params.append(
       "cancel_url",
-      "http://localhost:4000/api/v1/supersaler/ssl-cancel"
+      "https://ecommerce-client-backend-1.onrender.com/api/v1/supersaler/ssl-cancel"
     );
 
     params.append("cus_name", user.name || "Test User");

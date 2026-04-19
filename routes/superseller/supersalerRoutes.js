@@ -6,7 +6,9 @@ import {
   getApprovedProductsForSuperseller,
   // getBulkPosts,
   getBulkPostsForSupersaler,
+  getSupersalerBuyOrders,
   getSupersalerProfile,
+  supersalerCheckoutCOD,
   supersellerSellProduct,
   updateSupersalerProfile,
   updateSupersalerProfileImage,
@@ -107,6 +109,16 @@ router.post("/ssl-cancel", (req, res) => {
 });
 
 
+// cash on delivery
+
+router.post("/cart/checkout/cod", verifyToken, verifySuperSeller, supersalerCheckoutCOD);
+
+router.get(
+  "/orders/buy",
+  verifyToken,
+  verifySuperSeller,
+  getSupersalerBuyOrders
+);
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {

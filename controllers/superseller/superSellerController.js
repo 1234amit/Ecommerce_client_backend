@@ -2,6 +2,13 @@ import Product from "../../models/Product.js";
 import SellPost from "../../models/SellPost.js";
 import User from "../../models/User.js";
 import bcrypt from "bcryptjs";
+import Order from "../../models/Order.js";
+// import Order from "../../models/Order.js";
+import Payment from "../../models/Payment.js";
+import Cart from "../../models/Cart.js";
+import SupersalerBuyProductCart from "../../models/supersalerBuyProductCart.js";
+import mongoose from "mongoose";
+
 
 // Get Supersaler Profile
 export const getSupersalerProfile = async (req, res) => {
@@ -184,8 +191,6 @@ export const getApprovedProductsForSuperseller = async (req, res) => {
 
 
 
-
-
 // ✅ Superseller makes product available for consumer (Sell Product)
 // export const supersellerSellProduct = async (req, res) => {
 //   try {
@@ -220,6 +225,166 @@ export const getApprovedProductsForSuperseller = async (req, res) => {
 //     res.status(500).json({ message: "Server error", error: error.message });
 //   }
 // };
+
+// import mongoose from "mongoose";
+// import Order from "../../models/Order.js";
+// import Payment from "../../models/Payment.js";
+// import SupersalerBuyProductCart from "../../models/SupersalerBuyProductCart.js";
+
+export const supersalerCheckoutCOD = async (req, res) => {
+  try {
+    const supersalerId = req.user.id; // from token
+
+    // ===========================
+    // 1) Find Cart
+    // ===========================
+    const cart = await SupersalerBuyProductCart.findOne({
+      supersaler: supersalerId,
+    }).populate({
+      path: "items.product",
+      populate: { path: "producer" },
+    });
+
+    if (!cart || !cart.items || cart.items.length === 0) {
+      return res.status(400).json({ message: "Cart is empty" });
+    }
+
+    // ===========================
+    // 2) Create Order Items
+    // ===========================
+    const orderItems = cart.items.map((item) => {
+      const product = item.product;
+
+      const productName =
+        product.productName ||
+        product.name ||
+        product.title ||
+        product.product_title ||
+        "Unknown Product";
+
+      const productImage =
+        product.image ||
+        product.productImage ||
+        (Array.isArray(product.images) ? product.images[0] : null) ||
+        (Array.isArray(product.productImages) ? product.productImages[0] : null) ||
+        "no-image";
+
+      const price = Number(product.price || 0);
+      const quantity = Number(item.quantity || 0);
+      const totalPrice = price * quantity;
+
+      return {
+        productId: product._id,
+        productName: productName,
+        productImage: productImage,
+        price: price,
+        quantity: quantity,
+        totalPrice: totalPrice,
+      };
+    });
+
+    // ===========================
+    // 3) Calculate subtotal
+    // ===========================
+    const subtotal = orderItems.reduce((sum, item) => sum + item.totalPrice, 0);
+
+    // ===========================
+    // 4) Create Order
+    // ===========================
+    const order = await Order.create({
+      userId: supersalerId,
+      items: orderItems,
+      subtotal: subtotal,
+      deliveryFee: 0,
+      totalAmount: subtotal,
+      paymentMethod: "cash_on_delivery",
+      paymentStatus: "pending",
+      orderStatus: "pending",
+
+      // Optional notes
+      orderNotes: "Supersaler COD order",
+    });
+
+    // ===========================
+    // 5) Create Payment
+    // ===========================
+    const payment = await Payment.create({
+      userId: supersalerId,
+      orderId: order.orderId, // using your custom orderId (ORD-...)
+      method: "cash_on_delivery",
+      amount: order.totalAmount,
+      status: "pending",
+      notes: "COD order payment created",
+    });
+
+    // ===========================
+    // 6) Empty Cart
+    // ===========================
+    await SupersalerBuyProductCart.deleteOne({ supersaler: supersalerId });
+
+    // ===========================
+    // 7) Response
+    // ===========================
+    return res.status(201).json({
+      message: "Order placed successfully with Cash on Delivery",
+      order,
+      payment,
+    });
+  } catch (error) {
+    console.error("COD Checkout Error:", error);
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+// export const getSupersalerBuyOrders = async (req, res) => {
+//   try {
+//     const supersalerId = req.user.id;
+
+//     const orders = await Order.find({
+//       userId: supersalerId,
+//       isActive: true,
+//     })
+//       .sort({ createdAt: -1 });
+
+//     return res.status(200).json({
+//       message: "Supersaler buy orders fetched successfully",
+//       orders,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+export const getSupersalerBuyOrders = async (req, res) => {
+  try {
+    const supersalerId = req.user.id;
+
+    const orders = await Order.find({
+      userId: supersalerId,
+      isActive: true,
+    })
+      .populate("items.productId") // populate product details
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      message: "Supersaler buy orders fetched successfully",
+      orders,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
 
 export const supersellerSellProduct = async (req, res) => {
   try {
