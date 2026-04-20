@@ -312,38 +312,73 @@ export const wholesalerSellProduct = async (req, res) => {
 
 
 // GET bulk posts for wholesaler (FIXED & ROBUST)
+// export const getBulkPostsForWholesaler = async (req, res) => {
+//   try {
+//     if (req.user.role !== "wholesaler") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     const userDistrict = req.user.district?.trim().toLowerCase();
+//     const userThana = req.user.thana?.trim().toLowerCase();
+
+//     const posts = await SellPost.find({
+//       sellType: "bulk",
+//       isActive: true,
+//     });
+
+//     const filtered = posts.filter((p) => {
+//       const district =
+//         (p.district || p.seller?.district || p.producer?.district)
+//           ?.trim()
+//           .toLowerCase();
+
+//       const thana =
+//         (p.thana || p.seller?.thana || p.producer?.thana)
+//           ?.trim()
+//           .toLowerCase();
+
+//       return district === userDistrict && thana === userThana;
+//     });
+
+//     return res.json({
+//       message: "Bulk posts fetched successfully",
+//       totalFound: filtered.length,
+//       posts: filtered,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const getBulkPostsForWholesaler = async (req, res) => {
   try {
     if (req.user.role !== "wholesaler") {
       return res.status(403).json({ message: "Unauthorized access" });
     }
 
-    const userDistrict = req.user.district?.trim().toLowerCase();
-    const userThana = req.user.thana?.trim().toLowerCase();
+    const userDistrict = req.user.district?.trim();
+    const userThana = req.user.thana?.trim();
+
+    if (!userDistrict || !userThana) {
+      return res.status(400).json({ message: "District and thana required" });
+    }
 
     const posts = await SellPost.find({
       sellType: "bulk",
       isActive: true,
-    });
-
-    const filtered = posts.filter((p) => {
-      const district =
-        (p.district || p.seller?.district || p.producer?.district)
-          ?.trim()
-          .toLowerCase();
-
-      const thana =
-        (p.thana || p.seller?.thana || p.producer?.thana)
-          ?.trim()
-          .toLowerCase();
-
-      return district === userDistrict && thana === userThana;
-    });
+      remainingQuantity: { $gt: 0 }, // 🔥 only available stock
+      district: userDistrict,
+      thana: userThana,
+      visibility: { $in: ["all", "wholesaler"] },
+    }).sort({ createdAt: -1 });
 
     return res.json({
       message: "Bulk posts fetched successfully",
-      totalFound: filtered.length,
-      posts: filtered,
+      totalFound: posts.length,
+      posts,
     });
   } catch (error) {
     return res.status(500).json({

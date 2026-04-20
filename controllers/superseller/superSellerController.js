@@ -502,4 +502,55 @@ export const getBulkPostsForSupersaler = async (req, res) => {
 };
 
 
+// import mongoose from "mongoose";
+// import SellPost from "../../models/SellPost.js";
+
+
+// export const getBulkPostsForSupersaler = async (req, res) => {
+//   try {
+//     if (req.user.role !== "supersaler") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     const userDistrict = req.user.district?.trim();
+//     const userThana = req.user.thana?.trim();
+
+//     if (!userDistrict || !userThana) {
+//       return res.status(400).json({
+//         message: "User district and thana missing",
+//       });
+//     }
+
+//     const posts = await SellPost.find({
+//       sellType: "bulk",
+//       isActive: true,
+
+//       // ✅ FIXED visibility logic
+//       visibility: { $in: ["all", "supersaler"] },
+
+//       // ✅ safer matching (case insensitive)
+//       district: { $regex: new RegExp(`^${userDistrict}$`, "i") },
+//       thana: { $regex: new RegExp(`^${userThana}$`, "i") },
+
+//       seller: { $ne: req.user._id },
+//       remainingQuantity: { $gt: 0 },
+//     })
+//       .populate("product", "productName image pricePerKg unit")
+//       .populate("seller", "name phone district thana role")
+//       .populate("producer", "name phone district thana role")
+//       .sort({ createdAt: -1 });
+
+//     return res.json({
+//       message: "Bulk posts fetched successfully for supersaler",
+//       totalFound: posts.length,
+//       posts,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 
