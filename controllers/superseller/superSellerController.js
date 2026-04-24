@@ -502,6 +502,7 @@ export const getBulkPostsForSupersaler = async (req, res) => {
 };
 
 
+
 // import mongoose from "mongoose";
 // import SellPost from "../../models/SellPost.js";
 
@@ -552,5 +553,93 @@ export const getBulkPostsForSupersaler = async (req, res) => {
 //     });
 //   }
 // };
+
+
+// import Product from "../../models/Product.js";
+
+
+export const addSupersalerProduct = async (req, res) => {
+  try {
+    // ==========================
+    // Role Check
+    // ==========================
+    if (req.user.role !== "supersaler") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const {
+      productName,
+      quantity,
+      price,
+      description,
+      category,
+      addToSellPost,
+      secondaryImages,
+      image,
+    } = req.body;
+
+    // ==========================
+    // Validation
+    // ==========================
+    if (!productName || !quantity || !price || !description || !category) {
+      return res.status(400).json({
+        message:
+          "productName, quantity, price, description, category are required",
+      });
+    }
+
+    // ==========================
+    // Image Handling
+    // ==========================
+    let mainImage = null;
+
+    if (req.file) {
+      mainImage = req.file.path; // multer file
+    } else if (image) {
+      mainImage = image; // body image string
+    }
+
+    if (!mainImage) {
+      return res.status(400).json({ message: "Product image is required" });
+    }
+
+    // ==========================
+    // Create Product
+    // ==========================
+    const newProduct = await Product.create({
+      producer: req.user._id, // supersaler becomes producer in this model
+
+      image: mainImage,
+      secondaryImages: secondaryImages || [],
+
+      productName: productName.trim(),
+      quantity: quantity.toString(),
+      price: price.toString(),
+      previousPrice: price.toString(),
+
+      description: description.trim(),
+      category,
+
+      addToSellPost: addToSellPost || "no",
+
+      // you can choose pending or approved
+      status: "approved",
+      approvedBy: req.user._id,
+      approvedAt: new Date(),
+    });
+
+    return res.status(201).json({
+      message: "Product added successfully by supersaler",
+      product: newProduct,
+    });
+  } catch (error) {
+    console.error("addProductBySupersaler error:", error);
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
 
 

@@ -77,124 +77,124 @@
 // // export default Product;
 
 
-// import mongoose from "mongoose";
+import mongoose from "mongoose";
 
-// const productSchema = new mongoose.Schema(
-//   {
-//     producer: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: "User",
-//       required: true,
-//     },
+const productSchema = new mongoose.Schema(
+  {
+    producer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-//     image: {
-//       type: String,
-//       required: true,
-//     },
+    image: {
+      type: String,
+      required: true,
+    },
 
-//     secondaryImages: [
-//       {
-//         type: String,
-//       },
-//     ],
+    secondaryImages: [
+      {
+        type: String,
+      },
+    ],
 
-//     productName: {
-//       type: String,
-//       required: true,
-//     },
+    productName: {
+      type: String,
+      required: true,
+    },
 
-//     quantity: {
-//       type: String,
-//       required: true,
-//     },
+    quantity: {
+      type: String,
+      required: true,
+    },
 
-//     price: {
-//       type: String,
-//       required: true,
-//     },
+    price: {
+      type: String,
+      required: true,
+    },
 
-//     previousPrice: {
-//       type: String,
-//       required: true,
-//     },
+    previousPrice: {
+      type: String,
+      required: true,
+    },
 
-//     priceHistory: [
-//       {
-//         price: {
-//           type: String,
-//           required: true,
-//         },
-//         changedAt: {
-//           type: Date,
-//           default: Date.now,
-//         },
-//       },
-//     ],
+    priceHistory: [
+      {
+        price: {
+          type: String,
+          required: true,
+        },
+        changedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
 
-//     description: {
-//       type: String,
-//       required: true,
-//     },
+    description: {
+      type: String,
+      required: true,
+    },
 
-//     category: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: "Category",
-//       required: true,
-//     },
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
+      required: true,
+    },
 
-//     addToSellPost: {
-//       type: String,
-//       enum: ["yes", "no"],
-//       default: "no",
-//     },
+    addToSellPost: {
+      type: String,
+      enum: ["yes", "no"],
+      default: "no",
+    },
 
-//     // ✅ NEW FIELD: ADMIN APPROVAL STATUS
-//     status: {
-//       type: String,
-//       enum: ["pending", "approved", "rejected"],
-//       default: "pending",
-//     },
+    // ✅ NEW FIELD: ADMIN APPROVAL STATUS
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
 
-//     // ✅ NEW FIELD: ADMIN WHO APPROVED
-//     approvedBy: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: "User",
-//       default: null,
-//     },
+    // ✅ NEW FIELD: ADMIN WHO APPROVED
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
 
-//     // ✅ NEW FIELD: APPROVED TIME
-//     approvedAt: {
-//       type: Date,
-//       default: null,
-//     },
+    // ✅ NEW FIELD: APPROVED TIME
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
 
-//     // ✅ NEW FIELD: WHEN SUPERSELLER / WHOLESALER START SELLING
-//     isSelling: {
-//       type: Boolean,
-//       default: false,
-//     },
+    // ✅ NEW FIELD: WHEN SUPERSELLER / WHOLESALER START SELLING
+    isSelling: {
+      type: Boolean,
+      default: false,
+    },
 
-//     createdAt: {
-//       type: Date,
-//       default: Date.now,
-//     },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
 
-//     updatedAt: {
-//       type: Date,
-//       default: Date.now,
-//     },
-//   },
-//   { timestamps: true }
-// );
+    updatedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { timestamps: true }
+);
 
-// // Update updatedAt timestamp before saving
-// productSchema.pre("save", function (next) {
-//   this.updatedAt = new Date();
-//   next();
-// });
+// Update updatedAt timestamp before saving
+productSchema.pre("save", function (next) {
+  this.updatedAt = new Date();
+  next();
+});
 
-// const Product = mongoose.model("Product", productSchema);
-// export default Product;
+const Product = mongoose.model("Product", productSchema);
+export default Product;
 
 
 
@@ -348,196 +348,406 @@
 
 
 
-import mongoose from "mongoose";
+// import mongoose from "mongoose";
 
-const productSchema = new mongoose.Schema(
-  {
-    producer: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
+// const productSchema = new mongoose.Schema(
+//   {
+//     producer: {
+//       type: mongoose.Schema.Types.ObjectId,
+//       ref: "User",
+//       required: true,
+//     },
 
-    image: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+//     image: {
+//       type: String,
+//       required: true,
+//       trim: true,
+//     },
 
-    secondaryImages: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
+//     secondaryImages: [
+//       {
+//         type: String,
+//         trim: true,
+//       },
+//     ],
 
-    productName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+//     productName: {
+//       type: String,
+//       required: true,
+//       trim: true,
+//     },
 
-    // ✅ Quantity (number only)
-    quantity: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
+//     // ✅ Quantity (number only)
+//     quantity: {
+//       type: Number,
+//       required: true,
+//       min: 0,
+//     },
 
-    // ✅ Unit of quantity
-    unit: {
-      type: String,
-      enum: ["kg", "ton"],
-      required: true,
-    },
+//     // ✅ Unit of quantity
+//     unit: {
+//       type: String,
+//       enum: ["kg", "ton"],
+//       required: true,
+//     },
 
-    // ✅ Price Type (price per kg OR total price)
-    priceType: {
-      type: String,
-      enum: ["per_unit", "total"],
-      required: true,
-    },
+//     // ✅ Price Type (price per kg OR total price)
+//     priceType: {
+//       type: String,
+//       enum: ["per_unit", "total"],
+//       required: true,
+//     },
 
-    // ✅ Input price (what producer enters)
-    // if priceType = per_unit -> price = per kg price
-    // if priceType = total -> price = total price
-    price: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
+//     // ✅ Input price (what producer enters)
+//     // if priceType = per_unit -> price = per kg price
+//     // if priceType = total -> price = total price
+//     price: {
+//       type: Number,
+//       required: true,
+//       min: 0,
+//     },
 
-    // ✅ Calculated Total Price
-    totalPrice: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
+//     // ✅ Calculated Total Price
+//     totalPrice: {
+//       type: Number,
+//       required: true,
+//       min: 0,
+//     },
 
-    // ✅ Calculated Price Per KG
-    pricePerKg: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
+//     // ✅ Calculated Price Per KG
+//     pricePerKg: {
+//       type: Number,
+//       required: true,
+//       min: 0,
+//     },
 
-    previousPrice: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
+//     previousPrice: {
+//       type: Number,
+//       required: true,
+//       min: 0,
+//     },
 
-    priceHistory: [
-      {
-        price: {
-          type: Number,
-          required: true,
-          min: 0,
-        },
-        changedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
+//     priceHistory: [
+//       {
+//         price: {
+//           type: Number,
+//           required: true,
+//           min: 0,
+//         },
+//         changedAt: {
+//           type: Date,
+//           default: Date.now,
+//         },
+//       },
+//     ],
 
-    description: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+//     description: {
+//       type: String,
+//       required: true,
+//       trim: true,
+//     },
 
-    category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
-      required: true,
-    },
+//     category: {
+//       type: mongoose.Schema.Types.ObjectId,
+//       ref: "Category",
+//       required: true,
+//     },
 
-    addToSellPost: {
-      type: String,
-      enum: ["yes", "no"],
-      default: "no",
-    },
+//     addToSellPost: {
+//       type: String,
+//       enum: ["yes", "no"],
+//       default: "no",
+//     },
 
-    // ✅ ADMIN APPROVAL STATUS
-    status: {
-      type: String,
-      enum: ["pending", "approved", "rejected"],
-      default: "pending",
-    },
+//     // ✅ ADMIN APPROVAL STATUS
+//     status: {
+//       type: String,
+//       enum: ["pending", "approved", "rejected"],
+//       default: "pending",
+//     },
 
-    // ✅ ADMIN WHO APPROVED
-    approvedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
+//     // ✅ ADMIN WHO APPROVED
+//     approvedBy: {
+//       type: mongoose.Schema.Types.ObjectId,
+//       ref: "User",
+//       default: null,
+//     },
 
-    // ✅ APPROVED TIME
-    approvedAt: {
-      type: Date,
-      default: null,
-    },
+//     // ✅ APPROVED TIME
+//     approvedAt: {
+//       type: Date,
+//       default: null,
+//     },
 
-    // ✅ WHEN SUPERSELLER / WHOLESALER START SELLING
-    isSelling: {
-      type: Boolean,
-      default: false,
-    },
+//     // ✅ WHEN SUPERSELLER / WHOLESALER START SELLING
+//     isSelling: {
+//       type: Boolean,
+//       default: false,
+//     },
 
-    // ✅ WHO IS SELLING (Supersaler / Wholesaler)
-    sellingBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
+//     // ✅ WHO IS SELLING (Supersaler / Wholesaler)
+//     sellingBy: {
+//       type: mongoose.Schema.Types.ObjectId,
+//       ref: "User",
+//       default: null,
+//     },
 
-    // ✅ SELLER ROLE
-    sellingRole: {
-      type: String,
-      enum: ["supersaler", "wholesaler", null],
-      default: null,
-    },
+//     // ✅ SELLER ROLE
+//     sellingRole: {
+//       type: String,
+//       enum: ["supersaler", "wholesaler", null],
+//       default: null,
+//     },
 
-    // ✅ PRODUCER CONFIRMATION
-    sellingConfirmedByProducer: {
-      type: Boolean,
-      default: false,
-    },
+//     // ✅ PRODUCER CONFIRMATION
+//     sellingConfirmedByProducer: {
+//       type: Boolean,
+//       default: false,
+//     },
 
-    // ✅ PRODUCER CONFIRM TIME
-    sellingConfirmedAt: {
-      type: Date,
-      default: null,
-    },
-  },
-  { timestamps: true }
-);
+//     // ✅ PRODUCER CONFIRM TIME
+//     sellingConfirmedAt: {
+//       type: Date,
+//       default: null,
+//     },
+//   },
+//   { timestamps: true }
+// );
 
-// ✅ Auto calculation before saving
-productSchema.pre("save", function (next) {
-  let quantityInKg = this.quantity;
+// // ✅ Auto calculation before saving
+// productSchema.pre("save", function (next) {
+//   let quantityInKg = this.quantity;
 
-  if (this.unit === "ton") {
-    quantityInKg = this.quantity * 1000;
-  }
+//   if (this.unit === "ton") {
+//     quantityInKg = this.quantity * 1000;
+//   }
 
-  if (this.priceType === "per_unit") {
-    // price = per kg price
-    this.pricePerKg = this.price;
-    this.totalPrice = quantityInKg * this.price;
-  }
+//   if (this.priceType === "per_unit") {
+//     // price = per kg price
+//     this.pricePerKg = this.price;
+//     this.totalPrice = quantityInKg * this.price;
+//   }
 
-  if (this.priceType === "total") {
-    // price = total price
-    this.totalPrice = this.price;
-    this.pricePerKg = this.price / quantityInKg;
-  }
+//   if (this.priceType === "total") {
+//     // price = total price
+//     this.totalPrice = this.price;
+//     this.pricePerKg = this.price / quantityInKg;
+//   }
 
-  this.previousPrice = this.price;
+//   this.previousPrice = this.price;
 
-  next();
-});
+//   next();
+// });
 
-const Product = mongoose.model("Product", productSchema);
-export default Product;
+// const Product = mongoose.model("Product", productSchema);
+// export default Product;
+
+
+
+// // import mongoose from "mongoose";
+
+// // const productSchema = new mongoose.Schema(
+// //   {
+// //     // 🔥 Producer is optional now (because supersaler can create product)
+// //     producer: {
+// //       type: mongoose.Schema.Types.ObjectId,
+// //       ref: "User",
+// //       default: null,
+// //     },
+
+// //     // ✅ Track who created the product
+// //     createdBy: {
+// //       type: mongoose.Schema.Types.ObjectId,
+// //       ref: "User",
+// //       required: true,
+// //     },
+
+// //     createdByRole: {
+// //       type: String,
+// //       enum: ["producer", "supersaler", "wholesaler"],
+// //       required: true,
+// //     },
+
+// //     // 🔥 Store location directly in product
+// //     district: {
+// //       type: String,
+// //       required: true,
+// //       trim: true,
+// //       lowercase: true,
+// //     },
+
+// //     thana: {
+// //       type: String,
+// //       required: true,
+// //       trim: true,
+// //       lowercase: true,
+// //     },
+
+// //     image: {
+// //       type: String,
+// //       required: true,
+// //       trim: true,
+// //     },
+
+// //     secondaryImages: [
+// //       {
+// //         type: String,
+// //         trim: true,
+// //       },
+// //     ],
+
+// //     productName: {
+// //       type: String,
+// //       required: true,
+// //       trim: true,
+// //     },
+
+// //     quantity: {
+// //       type: Number,
+// //       required: true,
+// //       min: 0,
+// //     },
+
+// //     unit: {
+// //       type: String,
+// //       enum: ["kg", "ton"],
+// //       required: true,
+// //     },
+
+// //     priceType: {
+// //       type: String,
+// //       enum: ["per_unit", "total"],
+// //       required: true,
+// //     },
+
+// //     price: {
+// //       type: Number,
+// //       required: true,
+// //       min: 0,
+// //     },
+
+// //     totalPrice: {
+// //       type: Number,
+// //       required: true,
+// //       min: 0,
+// //     },
+
+// //     pricePerKg: {
+// //       type: Number,
+// //       required: true,
+// //       min: 0,
+// //     },
+
+// //     previousPrice: {
+// //       type: Number,
+// //       required: true,
+// //       min: 0,
+// //     },
+
+// //     priceHistory: [
+// //       {
+// //         price: {
+// //           type: Number,
+// //           required: true,
+// //           min: 0,
+// //         },
+// //         changedAt: {
+// //           type: Date,
+// //           default: Date.now,
+// //         },
+// //       },
+// //     ],
+
+// //     description: {
+// //       type: String,
+// //       required: true,
+// //       trim: true,
+// //     },
+
+// //     category: {
+// //       type: mongoose.Schema.Types.ObjectId,
+// //       ref: "Category",
+// //       required: true,
+// //     },
+
+// //     addToSellPost: {
+// //       type: String,
+// //       enum: ["yes", "no"],
+// //       default: "no",
+// //     },
+
+// //     // ✅ ADMIN APPROVAL STATUS
+// //     status: {
+// //       type: String,
+// //       enum: ["pending", "approved", "rejected"],
+// //       default: "pending",
+// //     },
+
+// //     approvedBy: {
+// //       type: mongoose.Schema.Types.ObjectId,
+// //       ref: "User",
+// //       default: null,
+// //     },
+
+// //     approvedAt: {
+// //       type: Date,
+// //       default: null,
+// //     },
+
+// //     // ✅ WHEN SUPERSELLER / WHOLESALER START SELLING
+// //     isSelling: {
+// //       type: Boolean,
+// //       default: false,
+// //     },
+
+// //     sellingBy: {
+// //       type: mongoose.Schema.Types.ObjectId,
+// //       ref: "User",
+// //       default: null,
+// //     },
+
+// //     sellingRole: {
+// //       type: String,
+// //       enum: ["supersaler", "wholesaler", null],
+// //       default: null,
+// //     },
+
+// //     sellingConfirmedByProducer: {
+// //       type: Boolean,
+// //       default: false,
+// //     },
+
+// //     sellingConfirmedAt: {
+// //       type: Date,
+// //       default: null,
+// //     },
+// //   },
+// //   { timestamps: true }
+// // );
+
+// // // ✅ Auto calculation before saving
+// // productSchema.pre("save", function (next) {
+// //   let quantityInKg = this.quantity;
+
+// //   if (this.unit === "ton") {
+// //     quantityInKg = this.quantity * 1000;
+// //   }
+
+// //   if (this.priceType === "per_unit") {
+// //     this.pricePerKg = this.price;
+// //     this.totalPrice = quantityInKg * this.price;
+// //   }
+
+// //   if (this.priceType === "total") {
+// //     this.totalPrice = this.price;
+// //     this.pricePerKg = this.price / quantityInKg;
+// //   }
+
+// //   // save previous price
+// //   this.previousPrice = this.price;
+
+// //   next();
+// // });
+
+// // const Product = mongoose.model("Product", productSchema);
+// // export default Product;

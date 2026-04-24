@@ -2,6 +2,7 @@ import express from "express";
 import { verifySuperSeller } from "../../middleware/superseller/verifySuperSeller.js";
 import { verifyToken } from "../../middleware/verifyToken.js";
 import {
+  addSupersalerProduct,
   changeSupersalerPassword,
   getApprovedProductsForSuperseller,
   // getBulkPosts,
@@ -119,6 +120,10 @@ router.get(
   verifySuperSeller,
   getSupersalerBuyOrders
 );
+
+
+router.post("/product/create", verifyToken, verifySuperSeller, addSupersalerProduct);
+
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {
