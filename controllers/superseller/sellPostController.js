@@ -377,7 +377,7 @@ export const createSellPost = async (req, res) => {
       quantity: Number(quantity),
       unit,
 
-      basePricePerKg: Number(product.pricePerKg),
+      basePricePerKg: Number(product.pricePerKg || 0),
       sellingPricePerKg: Number(sellingPricePerKg),
 
       commissionPercent,

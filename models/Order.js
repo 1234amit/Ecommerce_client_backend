@@ -56,6 +56,26 @@ const orderSchema = new mongoose.Schema(
     cancelledBy: { type: String, enum: ['customer', 'admin', 'system'] },
     cancellationReason: { type: String, trim: true },
     isActive: { type: Boolean, default: true },
+
+    supersalerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    adminActionStatus: {
+      type: String,
+      enum: ["pending", "confirmed", "rejected"],
+      default: "pending",
+    },
+
+    adminActionBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    adminActionAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,

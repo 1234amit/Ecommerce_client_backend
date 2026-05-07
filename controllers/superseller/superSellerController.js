@@ -431,6 +431,31 @@ export const supersellerSellProduct = async (req, res) => {
 };
 
 
+export const getSupersalerPurchases = async (req, res) => {
+  try {
+    const supersalerId = req.user.id;
+
+    const orders = await Order.find({
+      userId: supersalerId,
+      isActive: true,
+    })
+      .populate("items.productId")
+      .populate("adminActionBy", "name email")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      message: "All purchase orders fetched",
+      orders,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
 
 
 // getBulkPosts 

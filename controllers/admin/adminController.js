@@ -2,6 +2,7 @@ import User from "../../models/User.js";
 import bcrypt from "bcryptjs";
 import Product from "../../models/Product.js";
 import Notification from "../../models/Notification.js";
+import Order from "../../models/Order.js";
 
 // Get Admin Profile
 export const getAdminProfile = async (req, res) => {
@@ -1186,5 +1187,86 @@ export const getAllSellPostsForAdmin = async (req, res) => {
     res.json({ message: "All sell posts fetched", posts });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+
+// admin see supersaler order post
+
+export const getAllSupersalerOrdersForAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const orders = await Order.find({})
+      .populate({
+        path: "userId",
+        model: "User",
+        select: "name phone role district thana",
+      })
+      .populate("items.productId")
+      .sort({ createdAt: -1 });
+
+    // filter only supersaler orders
+    const supersalerOrders = orders.filter(
+      (order) => order.userId?.role === "supersaler"
+    );
+
+    return res.status(200).json({
+      message: "Supersaler orders fetched successfully",
+      total: supersalerOrders.length,
+      orders: supersalerOrders,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+export const updateSupersalerOrderStatus = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const { orderId } = req.params;
+    const { orderStatus, paymentStatus } = req.body;
+
+    const validOrderStatuses = ["pending", "confirmed", "processing", "completed", "cancelled"];
+    const validPaymentStatuses = ["pending", "paid", "failed", "refunded"];
+
+    const updateData = {};
+
+    if (orderStatus && validOrderStatuses.includes(orderStatus)) {
+      updateData.orderStatus = orderStatus;
+    }
+
+    if (paymentStatus && validPaymentStatuses.includes(paymentStatus)) {
+      updateData.paymentStatus = paymentStatus;
+    }
+
+    const updatedOrder = await Order.findByIdAndUpdate(
+      orderId,
+      { $set: updateData },
+      { new: true }
+    ).populate("items.productId");
+
+    if (!updatedOrder) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    return res.status(200).json({
+      message: "Order status updated successfully",
+      order: updatedOrder,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };

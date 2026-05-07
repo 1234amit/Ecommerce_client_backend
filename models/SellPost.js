@@ -198,6 +198,7 @@ const sellPostSchema = new mongoose.Schema(
     basePricePerKg: {
       type: Number,
       required: true,
+      min:0
     },
 
     // supersaler/wholesaler set selling price (per kg)

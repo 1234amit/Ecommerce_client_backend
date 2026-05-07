@@ -9,6 +9,7 @@ import {
   getBulkPostsForSupersaler,
   getSupersalerBuyOrders,
   getSupersalerProfile,
+  getSupersalerPurchases,
   supersalerCheckoutCOD,
   supersellerSellProduct,
   updateSupersalerProfile,
@@ -124,6 +125,8 @@ router.get(
 
 router.post("/product/create", verifyToken, verifySuperSeller, addSupersalerProduct);
 
+
+router.get("/get-own-product",verifyToken, verifySuperSeller, getSupersalerPurchases)
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {
