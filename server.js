@@ -62,7 +62,7 @@ app.use(
       "https://admin.krishighar.com"
     ],
     credentials: true, // Allow cookies
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
