@@ -44,6 +44,13 @@ import {
   getAllSellPostsForAdmin,
   getAllSupersalerOrdersForAdmin,
   updateSupersalerOrderStatus,
+  getSupersalerPurchasedProductsForAdmin,
+  getWholesalerPurchasedProductsForAdmin,
+  getProducerPurchasedProductsForAdmin,
+  getPendingSupersalerProductsForAdmin,
+  approveSupersalerProductByAdmin,
+  rejectSupersalerProductByAdmin,
+  getApprovedSupersalerProducts,
 } from "../../controllers/admin/adminController.js";
 import multer from "multer";
 import path from 'path';
@@ -240,5 +247,47 @@ router.use((error, req, res, next) => {
   
   next(error);
 });
+
+
+router.get(
+  "/supersaler-purchases",
+  verifyToken, verifyAdmin,
+  getSupersalerPurchasedProductsForAdmin
+);
+
+router.get(
+  "/wholesaler-purchases",
+  verifyToken, verifyAdmin,
+  getWholesalerPurchasedProductsForAdmin
+);
+
+router.get(
+  "/producer-purchases",
+  verifyToken, verifyAdmin,
+  getProducerPurchasedProductsForAdmin
+);
+
+router.get(
+  "/supersaler-products/pending",
+  verifyToken, verifyAdmin,
+  getPendingSupersalerProductsForAdmin
+);
+
+router.patch(
+  "/supersaler-products/:productId/approve",
+  verifyToken, verifyAdmin,
+  approveSupersalerProductByAdmin
+);
+
+router.patch(
+  "/supersaler-products/:productId/reject",
+  verifyToken, verifyAdmin,
+  rejectSupersalerProductByAdmin
+);
+
+router.get(
+  "/supersaler-products/approved", verifyToken, verifyAdmin,
+  getApprovedSupersalerProducts
+);
 
 export default router;

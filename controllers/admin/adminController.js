@@ -129,16 +129,6 @@ export const changeAdminPassword = async (req, res) => {
 };
 
 // Get All Users (Admin Only)
-// export const getAllUsers = async (req, res) => {
-//   try {
-//     const users = await User.find({}, "-password"); // Exclude password field for security
-//     res.json({ message: "All users fetched successfully", users });
-//   } catch (error) {
-//     res.status(500).json({ message: "Server error", error: error.message });
-//   }
-// };
-
-// Get All Users (Admin Only)
 export const getAllUsers = async (req, res) => {
   try {
     const users = await User.find({}, "-password").select("+lastLogin"); // Include lastLogin field
@@ -893,12 +883,6 @@ export const deleteProductById = async (req, res) => {
 };
 
 
-// import Product from "../../models/Product.js";
-// import Notification from "../../models/Notification.js";
-// import Category from "../../models/Category.js";
-// import User from "../../models/User.js";
-
-
 // ✅ Get All Pending Products (Admin)
 export const getPendingProducts = async (req, res) => {
   try {
@@ -1295,6 +1279,266 @@ export const updateSupersalerOrderStatus = async (req, res) => {
     return res.status(200).json({
       message: "Order status updated successfully",
       order: updatedOrder,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+// ✅ Admin: Get all supersaler purchased products
+export const getSupersalerPurchasedProductsForAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const supersalers = await User.find({ role: "supersaler" }).select("_id");
+
+    const supersalerIds = supersalers.map((user) => user._id);
+
+    const purchases = await Order.find({
+      userId: { $in: supersalerIds },
+      orderStatus: "completed",
+      paymentStatus: "paid",
+    })
+      .populate({
+        path: "userId",
+        select: "name phone role district thana address",
+      })
+      .populate("items.productId")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      message: "Supersaler purchased products fetched successfully",
+      total: purchases.length,
+      purchases,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+// ✅ Admin: Get all wholesaler purchased products
+export const getWholesalerPurchasedProductsForAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const wholesalers = await User.find({ role: "wholesaler" }).select("_id");
+
+    const wholesalerIds = wholesalers.map((user) => user._id);
+
+    const purchases = await Order.find({
+      userId: { $in: wholesalerIds },
+      orderStatus: "completed",
+      paymentStatus: "paid",
+    })
+      .populate({
+        path: "userId",
+        select: "name phone role district thana address",
+      })
+      .populate("items.productId")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      message: "Wholesaler purchased products fetched successfully",
+      total: purchases.length,
+      purchases,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+// ✅ Admin: Get all producer purchased products
+export const getProducerPurchasedProductsForAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const producers = await User.find({ role: "producer" }).select("_id");
+
+    const producerIds = producers.map((user) => user._id);
+
+    const purchases = await Order.find({
+      userId: { $in: producerIds },
+      orderStatus: "completed",
+      paymentStatus: "paid",
+    })
+      .populate({
+        path: "userId",
+        select: "name phone role district thana address",
+      })
+      .populate("items.productId")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      message: "Producer purchased products fetched successfully",
+      total: purchases.length,
+      purchases,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+export const getPendingSupersalerProductsForAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const pendingProducts = await Product.find({
+      status: "pending",
+    })
+      .populate({
+        path: "producer",
+        select: "name phone role district thana address",
+        match: { role: "supersaler" },
+      })
+      .sort({ createdAt: -1 });
+
+    const filteredProducts = pendingProducts.filter(
+      (product) => product.producer !== null
+    );
+
+    return res.status(200).json({
+      message: "Pending supersaler products fetched successfully",
+      total: filteredProducts.length,
+      products: filteredProducts,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+export const approveSupersalerProductByAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const { productId } = req.params;
+
+    const product = await Product.findById(productId).populate({
+      path: "producer",
+      select: "name phone role",
+    });
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    if (product.producer?.role !== "supersaler") {
+      return res.status(400).json({
+        message: "This product is not a supersaler product",
+      });
+    }
+
+    product.status = "approved";
+    product.approvedBy = req.user._id;
+    product.approvedAt = new Date();
+
+    await product.save();
+
+    return res.status(200).json({
+      message: "Supersaler product approved successfully",
+      product,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const rejectSupersalerProductByAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const { productId } = req.params;
+    const { reason } = req.body;
+
+    const product = await Product.findById(productId).populate({
+      path: "producer",
+      select: "name phone role",
+    });
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    if (product.producer?.role !== "supersaler") {
+      return res.status(400).json({
+        message: "This product is not a supersaler product",
+      });
+    }
+
+    product.status = "rejected";
+    product.rejectedBy = req.user._id;
+    product.rejectedAt = new Date();
+    product.rejectionReason = reason || "Rejected by admin";
+
+    await product.save();
+
+    return res.status(200).json({
+      message: "Supersaler product rejected successfully",
+      product,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+export const getApprovedSupersalerProducts = async (req, res) => {
+  try {
+    const products = await Product.find({
+      status: "approved",
+    })
+      .populate({
+        path: "producer",
+        select: "name phone role district thana address",
+        match: { role: "supersaler" },
+      })
+      .sort({ createdAt: -1 });
+
+    const approvedSupersalerProducts = products.filter(
+      (product) => product.producer !== null
+    );
+
+    return res.status(200).json({
+      message: "Approved supersaler products fetched successfully",
+      total: approvedSupersalerProducts.length,
+      products: approvedSupersalerProducts,
     });
   } catch (error) {
     return res.status(500).json({
