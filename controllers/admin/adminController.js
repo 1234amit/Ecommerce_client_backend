@@ -1193,25 +1193,59 @@ export const getAllSellPostsForAdmin = async (req, res) => {
 
 // admin see supersaler order post
 
+// export const getAllSupersalerOrdersForAdmin = async (req, res) => {
+//   try {
+//     if (req.user.role !== "admin") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     const orders = await Order.find({})
+//       .populate({
+//         path: "userId",
+//         model: "User",
+//         select: "name phone role district thana",
+//       })
+//       .populate("items.productId")
+//       .sort({ createdAt: -1 });
+
+//     // filter only supersaler orders
+//     const supersalerOrders = orders.filter(
+//       (order) => order.userId?.role === "supersaler"
+//     );
+
+//     return res.status(200).json({
+//       message: "Supersaler orders fetched successfully",
+//       total: supersalerOrders.length,
+//       orders: supersalerOrders,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const getAllSupersalerOrdersForAdmin = async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ message: "Unauthorized access" });
     }
 
-    const orders = await Order.find({})
+    const supersalerUsers = await User.find({ role: "supersaler" }).select("_id");
+
+    const supersalerUserIds = supersalerUsers.map((user) => user._id);
+
+    const supersalerOrders = await Order.find({
+      userId: { $in: supersalerUserIds },
+      orderStatus: { $nin: ["completed", "cancelled"] },
+    })
       .populate({
         path: "userId",
-        model: "User",
         select: "name phone role district thana",
       })
       .populate("items.productId")
       .sort({ createdAt: -1 });
-
-    // filter only supersaler orders
-    const supersalerOrders = orders.filter(
-      (order) => order.userId?.role === "supersaler"
-    );
 
     return res.status(200).json({
       message: "Supersaler orders fetched successfully",
@@ -1225,7 +1259,6 @@ export const getAllSupersalerOrdersForAdmin = async (req, res) => {
     });
   }
 };
-
 
 export const updateSupersalerOrderStatus = async (req, res) => {
   try {
