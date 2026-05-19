@@ -155,6 +155,12 @@ const productSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    productType: {
+  type: String,
+  enum: ["bulk", "rental"],
+  required: true,
+},
+
     // ✅ NEW FIELD: ADMIN WHO APPROVED
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,

@@ -618,9 +618,9 @@ export const getBulkPostsForSupersaler = async (req, res) => {
 //     let mainImage = null;
 
 //     if (req.file) {
-//       mainImage = req.file.path; // multer file
+//       mainImage = req.file.path;
 //     } else if (image) {
-//       mainImage = image; // body image string
+//       mainImage = image;
 //     }
 
 //     if (!mainImage) {
@@ -628,13 +628,30 @@ export const getBulkPostsForSupersaler = async (req, res) => {
 //     }
 
 //     // ==========================
-//     // Create Product
+//     // Secondary Images Handling
+//     // ==========================
+//     let parsedSecondaryImages = [];
+
+//     if (secondaryImages) {
+//       if (Array.isArray(secondaryImages)) {
+//         parsedSecondaryImages = secondaryImages;
+//       } else {
+//         try {
+//           parsedSecondaryImages = JSON.parse(secondaryImages);
+//         } catch (error) {
+//           parsedSecondaryImages = [];
+//         }
+//       }
+//     }
+
+//     // ==========================
+//     // Create Product as Pending
 //     // ==========================
 //     const newProduct = await Product.create({
-//       producer: req.user._id, // supersaler becomes producer in this model
+//       producer: req.user._id,
 
 //       image: mainImage,
-//       secondaryImages: secondaryImages || [],
+//       secondaryImages: parsedSecondaryImages,
 
 //       productName: productName.trim(),
 //       quantity: quantity.toString(),
@@ -646,18 +663,17 @@ export const getBulkPostsForSupersaler = async (req, res) => {
 
 //       addToSellPost: addToSellPost || "no",
 
-//       // you can choose pending or approved
-//       status: "approved",
-//       approvedBy: req.user._id,
-//       approvedAt: new Date(),
+//       status: "pending",
+//       approvedBy: null,
+//       approvedAt: null,
 //     });
 
 //     return res.status(201).json({
-//       message: "Product added successfully by supersaler",
+//       message: "Product added successfully. Waiting for admin approval.",
 //       product: newProduct,
 //     });
 //   } catch (error) {
-//     console.error("addProductBySupersaler error:", error);
+//     console.error("addSupersalerProduct error:", error);
 
 //     return res.status(500).json({
 //       message: "Server error",
@@ -665,6 +681,7 @@ export const getBulkPostsForSupersaler = async (req, res) => {
 //     });
 //   }
 // };
+
 
 export const addSupersalerProduct = async (req, res) => {
   try {
@@ -681,6 +698,7 @@ export const addSupersalerProduct = async (req, res) => {
       price,
       description,
       category,
+      productType,
       addToSellPost,
       secondaryImages,
       image,
@@ -689,10 +707,25 @@ export const addSupersalerProduct = async (req, res) => {
     // ==========================
     // Validation
     // ==========================
-    if (!productName || !quantity || !price || !description || !category) {
+    if (
+      !productName ||
+      !quantity ||
+      !price ||
+      !description ||
+      !category ||
+      !productType
+    ) {
       return res.status(400).json({
         message:
-          "productName, quantity, price, description, category are required",
+          "productName, quantity, price, description, category, productType are required",
+      });
+    }
+
+    const validProductTypes = ["bulk", "rental"];
+
+    if (!validProductTypes.includes(productType)) {
+      return res.status(400).json({
+        message: "Invalid productType. productType must be bulk or rental",
       });
     }
 
@@ -744,6 +777,8 @@ export const addSupersalerProduct = async (req, res) => {
 
       description: description.trim(),
       category,
+
+      productType,
 
       addToSellPost: addToSellPost || "no",
 
