@@ -69,7 +69,7 @@ router.get("/products/:productId", verifyToken, viewSingleProduct);
 
 router.get("/products", verifyToken, getProductsForConsumer);
 
-router.get("/retail-posts", verifyToken, getRetailPostsForConsumer);
+router.get("/retail-posts",  getRetailPostsForConsumer);
 
 
 
