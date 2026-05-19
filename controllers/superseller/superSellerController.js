@@ -527,11 +527,6 @@ export const getBulkPostsForSupersaler = async (req, res) => {
 };
 
 
-
-// import mongoose from "mongoose";
-// import SellPost from "../../models/SellPost.js";
-
-
 // export const getBulkPostsForSupersaler = async (req, res) => {
 //   try {
 //     if (req.user.role !== "supersaler") {
@@ -579,108 +574,6 @@ export const getBulkPostsForSupersaler = async (req, res) => {
 //   }
 // };
 
-
-
-
-// export const addSupersalerProduct = async (req, res) => {
-//   try {
-//     // ==========================
-//     // Role Check
-//     // ==========================
-//     if (req.user.role !== "supersaler") {
-//       return res.status(403).json({ message: "Unauthorized access" });
-//     }
-
-//     const {
-//       productName,
-//       quantity,
-//       price,
-//       description,
-//       category,
-//       addToSellPost,
-//       secondaryImages,
-//       image,
-//     } = req.body;
-
-//     // ==========================
-//     // Validation
-//     // ==========================
-//     if (!productName || !quantity || !price || !description || !category) {
-//       return res.status(400).json({
-//         message:
-//           "productName, quantity, price, description, category are required",
-//       });
-//     }
-
-//     // ==========================
-//     // Image Handling
-//     // ==========================
-//     let mainImage = null;
-
-//     if (req.file) {
-//       mainImage = req.file.path;
-//     } else if (image) {
-//       mainImage = image;
-//     }
-
-//     if (!mainImage) {
-//       return res.status(400).json({ message: "Product image is required" });
-//     }
-
-//     // ==========================
-//     // Secondary Images Handling
-//     // ==========================
-//     let parsedSecondaryImages = [];
-
-//     if (secondaryImages) {
-//       if (Array.isArray(secondaryImages)) {
-//         parsedSecondaryImages = secondaryImages;
-//       } else {
-//         try {
-//           parsedSecondaryImages = JSON.parse(secondaryImages);
-//         } catch (error) {
-//           parsedSecondaryImages = [];
-//         }
-//       }
-//     }
-
-//     // ==========================
-//     // Create Product as Pending
-//     // ==========================
-//     const newProduct = await Product.create({
-//       producer: req.user._id,
-
-//       image: mainImage,
-//       secondaryImages: parsedSecondaryImages,
-
-//       productName: productName.trim(),
-//       quantity: quantity.toString(),
-//       price: price.toString(),
-//       previousPrice: price.toString(),
-
-//       description: description.trim(),
-//       category,
-
-//       addToSellPost: addToSellPost || "no",
-
-//       status: "pending",
-//       approvedBy: null,
-//       approvedAt: null,
-//     });
-
-//     return res.status(201).json({
-//       message: "Product added successfully. Waiting for admin approval.",
-//       product: newProduct,
-//     });
-//   } catch (error) {
-//     console.error("addSupersalerProduct error:", error);
-
-//     return res.status(500).json({
-//       message: "Server error",
-//       error: error.message,
-//     });
-//   }
-// };
 
 
 export const addSupersalerProduct = async (req, res) => {
