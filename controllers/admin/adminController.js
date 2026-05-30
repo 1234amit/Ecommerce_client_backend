@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import Product from "../../models/Product.js";
 import Notification from "../../models/Notification.js";
 import Order from "../../models/Order.js";
+// import Product from "../models/Product.js";
+
 
 // Get Admin Profile
 export const getAdminProfile = async (req, res) => {
@@ -996,34 +998,99 @@ export const getRejectedProducts = async (req, res) => {
 //   }
 // };
 
+// export const approveProduct = async (req, res) => {
+//   try {
+//     if (req.user.role !== "admin") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     const { productId } = req.params;
+
+//     const product = await Product.findById(productId).populate("producer");
+
+//     if (!product) {
+//       return res.status(404).json({ message: "Product not found" });
+//     }
+
+//     if (product.status === "approved") {
+//       return res.status(400).json({ message: "Product already approved" });
+//     }
+
+//     product.status = "approved";
+//     product.approvedBy = req.user._id;
+//     product.approvedAt = new Date();
+//     product.updatedAt = new Date();
+
+//     await product.save();
+
+//     // ✅ Notification for Producer (FIXED)
+//     await Notification.create({
+//       recipient: product.producer._id,
+//       sender: req.user._id,
+//       type: "product_approved",
+//       category: "product",
+//       title: "Product Approved",
+//       message: `Your product "${product.productName}" has been approved by admin.`,
+//       productId: product._id,
+//       priority: "normal",
+//       isRead: false,
+//     });
+
+//     res.json({
+//       message: "Product approved successfully",
+//       product,
+//     });
+//   } catch (error) {
+//     console.error("Error approving product:", error);
+//     res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
+
 export const approveProduct = async (req, res) => {
   try {
+    // ✅ Check admin role
     if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Unauthorized access" });
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
     }
 
     const { productId } = req.params;
 
+    // ✅ Find product
     const product = await Product.findById(productId).populate("producer");
 
     if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+      return res.status(404).json({
+        message: "Product not found",
+      });
     }
 
+    // ✅ Already approved check
     if (product.status === "approved") {
-      return res.status(400).json({ message: "Product already approved" });
+      return res.status(400).json({
+        message: "Product already approved",
+      });
     }
 
+    // ✅ FIX missing productType problem
+    // old products may not contain productType
+    if (!product.productType) {
+      product.productType = "general";
+    }
+
+    // ✅ Update product
     product.status = "approved";
     product.approvedBy = req.user._id;
     product.approvedAt = new Date();
     product.updatedAt = new Date();
 
-    await product.save();
+    // ✅ Save product
+    await product.save({ validateBeforeSave: false });
 
-    // ✅ Notification for Producer (FIXED)
+    // ✅ Create notification
     await Notification.create({
-      recipient: product.producer._id,
+      recipient: product.producer?._id,
       sender: req.user._id,
       type: "product_approved",
       category: "product",
@@ -1034,13 +1101,20 @@ export const approveProduct = async (req, res) => {
       isRead: false,
     });
 
-    res.json({
+    // ✅ Response
+    res.status(200).json({
+      success: true,
       message: "Product approved successfully",
       product,
     });
+
   } catch (error) {
-    console.error("Error approving product:", error);
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Approve Product Error:", error);
+
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };
 
@@ -1210,19 +1284,63 @@ export const getAllSellPostsForAdmin = async (req, res) => {
 //   }
 // };
 
+
+// export const getAllSupersalerOrdersForAdmin = async (req, res) => {
+//   try {
+//     // ✅ Admin check
+//     if (req.user.role !== "admin") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     // ✅ Get all supersaler user IDs
+//     const supersalerUsers = await User.find({ role: "supersaler" }).select("_id");
+
+//     const supersalerUserIds = supersalerUsers.map((user) => user._id);
+
+//     // ✅ Fetch orders excluding unwanted statuses
+//     const supersalerOrders = await Order.find({
+//       userId: { $in: supersalerUserIds },
+//       orderStatus: {
+//         $nin: ["completed", "cancelled", "canceled", "rejected"],
+//       },
+//     })
+//       .populate({
+//         path: "userId",
+//         select: "name phone role district thana",
+//       })
+//       .populate("items.productId")
+//       .sort({ createdAt: -1 });
+
+//     return res.status(200).json({
+//       message: "Supersaler orders fetched successfully",
+//       total: supersalerOrders.length,
+//       orders: supersalerOrders,
+//     });
+
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const getAllSupersalerOrdersForAdmin = async (req, res) => {
   try {
+    // ✅ Admin check
     if (req.user.role !== "admin") {
       return res.status(403).json({ message: "Unauthorized access" });
     }
 
+    // ✅ Get all supersaler user IDs
     const supersalerUsers = await User.find({ role: "supersaler" }).select("_id");
 
     const supersalerUserIds = supersalerUsers.map((user) => user._id);
 
+    // ✅ Fetch ONLY approved orders
     const supersalerOrders = await Order.find({
       userId: { $in: supersalerUserIds },
-      orderStatus: { $nin: ["completed", "cancelled"] },
+      orderStatus: "approved",
     })
       .populate({
         path: "userId",
@@ -1232,10 +1350,11 @@ export const getAllSupersalerOrdersForAdmin = async (req, res) => {
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
-      message: "Supersaler orders fetched successfully",
+      message: "Approved supersaler orders fetched successfully",
       total: supersalerOrders.length,
       orders: supersalerOrders,
     });
+
   } catch (error) {
     return res.status(500).json({
       message: "Server error",
@@ -1475,8 +1594,52 @@ export const approveSupersalerProductByAdmin = async (req, res) => {
   }
 };
 
+// export const rejectSupersalerProductByAdmin = async (req, res) => {
+//   try {
+//     if (req.user.role !== "admin") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     const { productId } = req.params;
+//     const { reason } = req.body;
+
+//     const product = await Product.findById(productId).populate({
+//       path: "producer",
+//       select: "name phone role",
+//     });
+
+//     if (!product) {
+//       return res.status(404).json({ message: "Product not found" });
+//     }
+
+//     if (product.producer?.role !== "supersaler") {
+//       return res.status(400).json({
+//         message: "This product is not a supersaler product",
+//       });
+//     }
+
+//     product.status = "rejected";
+//     product.rejectedBy = req.user._id;
+//     product.rejectedAt = new Date();
+//     product.rejectionReason = reason || "Rejected by admin";
+
+//     await product.save();
+
+//     return res.status(200).json({
+//       message: "Supersaler product rejected successfully",
+//       product,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const rejectSupersalerProductByAdmin = async (req, res) => {
   try {
+    // ✅ Admin check
     if (req.user.role !== "admin") {
       return res.status(403).json({ message: "Unauthorized access" });
     }
@@ -1484,6 +1647,7 @@ export const rejectSupersalerProductByAdmin = async (req, res) => {
     const { productId } = req.params;
     const { reason } = req.body;
 
+    // ✅ Check product exists + populate producer
     const product = await Product.findById(productId).populate({
       path: "producer",
       select: "name phone role",
@@ -1493,31 +1657,44 @@ export const rejectSupersalerProductByAdmin = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
+    // ✅ Check supersaler product
     if (product.producer?.role !== "supersaler") {
       return res.status(400).json({
         message: "This product is not a supersaler product",
       });
     }
 
-    product.status = "rejected";
-    product.rejectedBy = req.user._id;
-    product.rejectedAt = new Date();
-    product.rejectionReason = reason || "Rejected by admin";
-
-    await product.save();
+    // ✅ Update without validation issues
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      {
+        $set: {
+          status: "rejected",
+          rejectedBy: req.user._id,
+          rejectedAt: new Date(),
+          rejectionReason: reason || "Rejected by admin",
+        },
+      },
+      { new: true }
+    ).populate({
+      path: "producer",
+      select: "name phone role",
+    });
 
     return res.status(200).json({
       message: "Supersaler product rejected successfully",
-      product,
+      product: updatedProduct,
     });
+
   } catch (error) {
+    console.error("Reject Supersaler Product Error:", error);
+
     return res.status(500).json({
       message: "Server error",
       error: error.message,
     });
   }
 };
-
 
 export const getApprovedSupersalerProducts = async (req, res) => {
   try {
