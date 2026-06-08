@@ -431,7 +431,7 @@ export const supersellerSellProduct = async (req, res) => {
 };
 
 
-export const getSupersalerPurchases = async (req, res) => {
+export const getSupersalerOrders = async (req, res) => {
   try {
     const supersalerId = req.user.id;
 
@@ -456,9 +456,262 @@ export const getSupersalerPurchases = async (req, res) => {
 };
 
 
+// export const getSupersalerOwnProducts = async (req, res) => {
+//   try {
+//     // ==========================
+//     // Role Check
+//     // ==========================
+//     if (req.user.role !== "supersaler") {
+//       return res.status(403).json({
+//         message: "Unauthorized access",
+//       });
+//     }
+
+//     const supersalerId = req.user._id;
+
+//     // ==========================
+//     // Fetch Own Products
+//     // ==========================
+//     const products = await Product.find({
+//       producer: supersalerId,
+//     })
+//       .populate("category", "name")
+//       .populate("approvedBy", "name email")
+//       .sort({ createdAt: -1 });
+
+//     return res.status(200).json({
+//       message: "Supersaler products fetched successfully",
+//       totalProducts: products.length,
+//       products,
+//     });
+//   } catch (error) {
+//     console.error("getSupersalerOwnProducts error:", error);
+
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+
 
 
 // getBulkPosts 
+
+
+export const getSupersalerOwnProducts = async (req, res) => {
+  try {
+    // ==========================
+    // Role Check
+    // ==========================
+    if (req.user.role !== "supersaler") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const supersalerId = req.user._id;
+
+    // ==========================
+    // 1. Get Supersaler Own Products
+    // ==========================
+    const ownProducts = await Product.find({
+      producer: supersalerId,
+    })
+      .populate("category", "name")
+      .populate("approvedBy", "name email")
+      .sort({ createdAt: -1 });
+
+    // ==========================
+    // 2. Get ALL Paid Orders
+    // (IMPORTANT: DO NOT FILTER BY userId)
+    // ==========================
+    const paidOrders = await Order.find({
+      paymentStatus: "paid",
+      isActive: true,
+    }).populate("items.productId");
+
+    console.log(paidOrders)
+
+    // ==========================
+    // 3. Filter only this supersaler's products
+    // ==========================
+    const supersalerProductIds = new Set(
+      ownProducts.map((p) => p._id.toString())
+    );
+
+    const paidProducts = [];
+
+    paidOrders.forEach((order) => {
+      order.items.forEach((item) => {
+        const product = item.productId;
+
+        if (
+          product &&
+          supersalerProductIds.has(product._id.toString())
+        ) {
+          paidProducts.push(product);
+        }
+      });
+    });
+
+    // ==========================
+    // 4. Merge + Remove Duplicates
+    // ==========================
+    const allProductsMap = new Map();
+
+    [...ownProducts, ...paidProducts].forEach((product) => {
+      allProductsMap.set(product._id.toString(), product);
+    });
+
+    const allProducts = Array.from(allProductsMap.values());
+
+    // ==========================
+    // RESPONSE
+    // ==========================
+    return res.status(200).json({
+      message: "Supersaler products fetched successfully",
+      totalProducts: allProducts.length,
+      products: allProducts,
+    });
+  } catch (error) {
+    console.error("getSupersalerOwnProducts error:", error);
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+// export const getSupersalerPurchasedProducts = async (req, res) => {
+//   try {
+//     if (req.user.role !== "supersaler") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     const supersalerId = req.user._id;
+
+//     // 🔥 DIRECTLY GET ORDERS (NO PAYMENT TABLE)
+//     const orders = await Order.find({
+//       isActive: true,
+//       paymentStatus: "paid",
+//     })
+//       .populate({
+//         path: "items.productId",
+//         populate: [
+//           { path: "category", select: "name" },
+//           { path: "approvedBy", select: "name email" },
+//         ],
+//       })
+//       .lean();
+
+//     const purchasedProducts = [];
+
+//     orders.forEach(order => {
+//       (order.items || []).forEach(item => {
+//         if (item.productId) {
+//           purchasedProducts.push({
+//             ...item.productId,
+//             purchasedQuantity: item.quantity,
+//             purchasedPrice: item.price,
+//             purchasedFromOrder: order.orderId,
+//             purchasedAt: order.createdAt,
+//             isPurchased: true,
+//           });
+//         }
+//       });
+//     });
+
+//     return res.status(200).json({
+//       message: "Purchased products fetched successfully",
+//       totalPurchased: purchasedProducts.length,
+//       products: purchasedProducts,
+//     });
+
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+
+export const getSupersalerPurchasedProducts = async (req, res) => {
+  try {
+    if (req.user.role !== "supersaler") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const supersalerId = req.user._id;
+
+    // 1. Get paid orders (ONLY order is source of truth)
+    const orders = await Order.find({
+      paymentStatus: "paid",
+      isActive: true,
+    })
+      .populate({
+        path: "items.productId",
+        populate: [
+          { path: "category", select: "name" },
+          { path: "approvedBy", select: "name email" },
+        ],
+      })
+      .lean();
+
+    // 2. Unique product map (IMPORTANT)
+    const purchasedMap = new Map();
+
+    orders.forEach((order) => {
+      (order.items || []).forEach((item) => {
+        const product = item.productId;
+
+        if (!product || !product._id) return;
+
+        const productId = product._id.toString();
+
+        // If already exists → merge quantity (VERY IMPORTANT FIX)
+        if (purchasedMap.has(productId)) {
+          const existing = purchasedMap.get(productId);
+
+          purchasedMap.set(productId, {
+            ...existing,
+            purchasedQuantity:
+              (existing.purchasedQuantity || 0) + (item.quantity || 0),
+          });
+        } else {
+          purchasedMap.set(productId, {
+            ...product,
+            purchasedQuantity: item.quantity || 0,
+            purchasedPrice: item.price || 0,
+            purchasedFromOrder: order.orderId,
+            purchasedAt: order.createdAt,
+            isPurchased: true,
+          });
+        }
+      });
+    });
+
+    const purchasedProducts = Array.from(purchasedMap.values());
+
+    return res.status(200).json({
+      message: "Purchased products fetched successfully",
+      totalPurchased: purchasedProducts.length,
+      products: purchasedProducts,
+    });
+
+  } catch (error) {
+    console.error("Purchased Products Error:", error);
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
 
 export const getBulkPosts = async (req, res) => {
   try {

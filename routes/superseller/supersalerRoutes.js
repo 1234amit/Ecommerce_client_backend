@@ -8,8 +8,11 @@ import {
   // getBulkPosts,
   getBulkPostsForSupersaler,
   getSupersalerBuyOrders,
+  getSupersalerOrders,
+  getSupersalerOwnProducts,
   getSupersalerProfile,
-  getSupersalerPurchases,
+  getSupersalerPurchasedProducts,
+  // getSupersalerPurchases,
   supersalerCheckoutCOD,
   supersellerSellProduct,
   updateSupersalerProfile,
@@ -126,7 +129,23 @@ router.get(
 router.post("/product/create", verifyToken, verifySuperSeller, addSupersalerProduct);
 
 
-router.get("/get-own-product",verifyToken, verifySuperSeller, getSupersalerPurchases)
+// router.get("/get-own-product",verifyToken, verifySuperSeller, getSupersalerPurchases)
+
+router.get("/get-supersaler-orders",verifyToken, verifySuperSeller, getSupersalerOrders)
+
+router.get(
+  "/my-products",
+  verifyToken,
+  getSupersalerOwnProducts
+);
+
+
+router.get(
+  "/get-supersaler-purchased-products",
+  verifyToken,
+  getSupersalerPurchasedProducts
+);
+
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {
