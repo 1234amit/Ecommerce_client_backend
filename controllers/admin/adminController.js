@@ -1251,117 +1251,6 @@ export const getAllSellPostsForAdmin = async (req, res) => {
 
 // admin see supersaler order post
 
-// export const getAllSupersalerOrdersForAdmin = async (req, res) => {
-//   try {
-//     if (req.user.role !== "admin") {
-//       return res.status(403).json({ message: "Unauthorized access" });
-//     }
-
-//     const orders = await Order.find({})
-//       .populate({
-//         path: "userId",
-//         model: "User",
-//         select: "name phone role district thana",
-//       })
-//       .populate("items.productId")
-//       .sort({ createdAt: -1 });
-
-//     // filter only supersaler orders
-//     const supersalerOrders = orders.filter(
-//       (order) => order.userId?.role === "supersaler"
-//     );
-
-//     return res.status(200).json({
-//       message: "Supersaler orders fetched successfully",
-//       total: supersalerOrders.length,
-//       orders: supersalerOrders,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       message: "Server error",
-//       error: error.message,
-//     });
-//   }
-// };
-
-
-// export const getAllSupersalerOrdersForAdmin = async (req, res) => {
-//   try {
-//     // ✅ Admin check
-//     if (req.user.role !== "admin") {
-//       return res.status(403).json({ message: "Unauthorized access" });
-//     }
-
-//     // ✅ Get all supersaler user IDs
-//     const supersalerUsers = await User.find({ role: "supersaler" }).select("_id");
-
-//     const supersalerUserIds = supersalerUsers.map((user) => user._id);
-
-//     // ✅ Fetch orders excluding unwanted statuses
-//     const supersalerOrders = await Order.find({
-//       userId: { $in: supersalerUserIds },
-//       orderStatus: {
-//         $nin: ["completed", "cancelled", "canceled", "rejected"],
-//       },
-//     })
-//       .populate({
-//         path: "userId",
-//         select: "name phone role district thana",
-//       })
-//       .populate("items.productId")
-//       .sort({ createdAt: -1 });
-
-//     return res.status(200).json({
-//       message: "Supersaler orders fetched successfully",
-//       total: supersalerOrders.length,
-//       orders: supersalerOrders,
-//     });
-
-//   } catch (error) {
-//     return res.status(500).json({
-//       message: "Server error",
-//       error: error.message,
-//     });
-//   }
-// };
-
-// export const getAllSupersalerOrdersForAdmin = async (req, res) => {
-//   try {
-//     // ✅ Admin check
-//     if (req.user.role !== "admin") {
-//       return res.status(403).json({ message: "Unauthorized access" });
-//     }
-
-//     // ✅ Get all supersaler user IDs
-//     const supersalerUsers = await User.find({ role: "supersaler" }).select("_id");
-
-//     const supersalerUserIds = supersalerUsers.map((user) => user._id);
-
-//     // ✅ Fetch ONLY approved orders
-//     const supersalerOrders = await Order.find({
-//       userId: { $in: supersalerUserIds },
-//       orderStatus: "approved",
-//     })
-//       .populate({
-//         path: "userId",
-//         select: "name phone role district thana",
-//       })
-//       .populate("items.productId")
-//       .sort({ createdAt: -1 });
-
-//     return res.status(200).json({
-//       message: "Approved supersaler orders fetched successfully",
-//       total: supersalerOrders.length,
-//       orders: supersalerOrders,
-//     });
-
-//   } catch (error) {
-//     return res.status(500).json({
-//       message: "Server error",
-//       error: error.message,
-//     });
-//   }
-// };
 
 export const getAllSupersalerOrdersForAdmin = async (req, res) => {
   try {
@@ -1474,6 +1363,304 @@ export const updateSupersalerOrderStatus = async (req, res) => {
       order: updatedOrder,
     });
   } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+// admin see wholesaler orders
+
+export const getAllWholesalerOrdersForAdmin = async (req, res) => {
+  try {
+    // ==========================
+    // ADMIN CHECK
+    // ==========================
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    // ==========================
+    // GET WHOLESALER IDS
+    // ==========================
+    const wholesalers = await User.find({
+      role: "wholesaler",
+    }).select("_id");
+
+    const wholesalerIds = wholesalers.map(
+      (user) => user._id.toString()
+    );
+
+    // ==========================
+    // GET ORDERS
+    // ==========================
+    const wholesalerOrders = await Order.find({
+      userId: { $in: wholesalerIds },
+      isActive: true,
+    })
+      .populate({
+        path: "userId",
+        select: "name email phone role district thana",
+      })
+      .populate({
+        path: "items.productId",
+        populate: [
+          {
+            path: "category",
+            select: "name",
+          },
+          {
+            path: "producer",
+            select: "name email phone",
+          },
+        ],
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      message: "Wholesaler orders fetched successfully",
+      totalOrders: wholesalerOrders.length,
+      orders: wholesalerOrders,
+    });
+
+  } catch (error) {
+    console.error(
+      "getAllWholesalerOrdersForAdmin error:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+export const updateWholesalerOrderStatus = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const { orderId } = req.params;
+    const { orderStatus, paymentStatus } = req.body;
+
+    const validOrderStatuses = [
+      "pending",
+      "confirmed",
+      "processing",
+      "shipped",
+      "delivered",
+      "cancelled",
+    ];
+
+    const validPaymentStatuses = [
+      "pending",
+      "paid",
+      "failed",
+      "refunded",
+    ];
+
+    const updateData = {};
+
+    if (
+      orderStatus &&
+      validOrderStatuses.includes(orderStatus)
+    ) {
+      updateData.orderStatus = orderStatus;
+    }
+
+    if (
+      paymentStatus &&
+      validPaymentStatuses.includes(paymentStatus)
+    ) {
+      updateData.paymentStatus = paymentStatus;
+    }
+
+    const updatedOrder = await Order.findByIdAndUpdate(
+      orderId,
+      { $set: updateData },
+      { new: true }
+    )
+      .populate("userId", "name email phone")
+      .populate("items.productId");
+
+    if (!updatedOrder) {
+      return res.status(404).json({
+        message: "Order not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Wholesaler order updated successfully",
+      order: updatedOrder,
+    });
+
+  } catch (error) {
+    console.error(
+      "updateWholesalerOrderStatus error:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+//admin see consumer orders
+
+export const getAllConsumerOrdersForAdmin = async (req, res) => {
+  try {
+    // ==========================
+    // ADMIN CHECK
+    // ==========================
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    // ==========================
+    // GET CONSUMER IDS
+    // ==========================
+    const consumers = await User.find({
+      role: "consumer",
+    }).select("_id");
+
+    const consumerIds = consumers.map(
+      (user) => user._id.toString()
+    );
+
+    // ==========================
+    // GET ORDERS
+    // ==========================
+    const consumerOrders = await Order.find({
+      userId: { $in: consumerIds },
+      isActive: true,
+    })
+      .populate({
+        path: "userId",
+        select: "name email phone role district thana",
+      })
+      .populate({
+        path: "items.productId",
+        populate: [
+          {
+            path: "category",
+            select: "name",
+          },
+          {
+            path: "producer",
+            select: "name email phone",
+          },
+        ],
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      message: "Consumer orders fetched successfully",
+      totalOrders: consumerOrders.length,
+      orders: consumerOrders,
+    });
+
+  } catch (error) {
+    console.error(
+      "getAllConsumerOrdersForAdmin error:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+
+export const updateConsumerOrderStatus = async (req, res) => {
+  try {
+    // ==========================
+    // ADMIN CHECK
+    // ==========================
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const { orderId } = req.params;
+    const { orderStatus, paymentStatus } = req.body;
+
+    const validOrderStatuses = [
+      "pending",
+      "confirmed",
+      "processing",
+      "shipped",
+      "delivered",
+      "cancelled",
+    ];
+
+    const validPaymentStatuses = [
+      "pending",
+      "paid",
+      "failed",
+      "refunded",
+    ];
+
+    const updateData = {};
+
+    if (
+      orderStatus &&
+      validOrderStatuses.includes(orderStatus)
+    ) {
+      updateData.orderStatus = orderStatus;
+    }
+
+    if (
+      paymentStatus &&
+      validPaymentStatuses.includes(paymentStatus)
+    ) {
+      updateData.paymentStatus = paymentStatus;
+    }
+
+    const updatedOrder = await Order.findByIdAndUpdate(
+      orderId,
+      { $set: updateData },
+      { new: true }
+    )
+      .populate("userId", "name email phone role")
+      .populate("items.productId");
+
+    if (!updatedOrder) {
+      return res.status(404).json({
+        message: "Order not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Consumer order updated successfully",
+      order: updatedOrder,
+    });
+
+  } catch (error) {
+    console.error(
+      "updateConsumerOrderStatus error:",
+      error
+    );
+
     return res.status(500).json({
       message: "Server error",
       error: error.message,

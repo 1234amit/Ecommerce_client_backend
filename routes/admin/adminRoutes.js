@@ -51,6 +51,10 @@ import {
   approveSupersalerProductByAdmin,
   rejectSupersalerProductByAdmin,
   getApprovedSupersalerProducts,
+  getAllWholesalerOrdersForAdmin,
+  updateWholesalerOrderStatus,
+  getAllConsumerOrdersForAdmin,
+  updateConsumerOrderStatus,
 } from "../../controllers/admin/adminController.js";
 import multer from "multer";
 import path from 'path';
@@ -231,6 +235,15 @@ router.get("/view-supersaler-product", verifyToken, verifyAdmin, getAllSupersale
 
 
 router.patch("/update-status/:orderId", verifyToken, verifyAdmin, updateSupersalerOrderStatus)
+
+
+router.get("/view-wholesaler-product", verifyToken, verifyAdmin, getAllWholesalerOrdersForAdmin)
+
+router.patch("/update-wholesaler-status/:orderId", verifyToken, verifyAdmin, updateWholesalerOrderStatus)
+
+router.get("/view-consumer-product", verifyToken, verifyAdmin, getAllConsumerOrdersForAdmin)
+
+router.patch("/update-consumer-status/:orderId", verifyToken, verifyAdmin, updateConsumerOrderStatus)
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {
