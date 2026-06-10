@@ -1325,37 +1325,111 @@ export const getAllSellPostsForAdmin = async (req, res) => {
 //   }
 // };
 
+// export const getAllSupersalerOrdersForAdmin = async (req, res) => {
+//   try {
+//     // ✅ Admin check
+//     if (req.user.role !== "admin") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     // ✅ Get all supersaler user IDs
+//     const supersalerUsers = await User.find({ role: "supersaler" }).select("_id");
+
+//     const supersalerUserIds = supersalerUsers.map((user) => user._id);
+
+//     // ✅ Fetch ONLY approved orders
+//     const supersalerOrders = await Order.find({
+//       userId: { $in: supersalerUserIds },
+//       orderStatus: "approved",
+//     })
+//       .populate({
+//         path: "userId",
+//         select: "name phone role district thana",
+//       })
+//       .populate("items.productId")
+//       .sort({ createdAt: -1 });
+
+//     return res.status(200).json({
+//       message: "Approved supersaler orders fetched successfully",
+//       total: supersalerOrders.length,
+//       orders: supersalerOrders,
+//     });
+
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const getAllSupersalerOrdersForAdmin = async (req, res) => {
   try {
-    // ✅ Admin check
+
+    // ==========================
+    // ADMIN CHECK
+    // ==========================
     if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Unauthorized access" });
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
     }
 
-    // ✅ Get all supersaler user IDs
-    const supersalerUsers = await User.find({ role: "supersaler" }).select("_id");
+    // ==========================
+    // GET SUPERSALER IDS
+    // ==========================
+    const supersalers = await User.find({
+      role: "supersaler",
+    }).select("_id");
 
-    const supersalerUserIds = supersalerUsers.map((user) => user._id);
+    // IMPORTANT FIX
+    const supersalerIds = supersalers.map(
+      (user) => user._id.toString()
+    );
 
-    // ✅ Fetch ONLY approved orders
+    // ==========================
+    // GET ORDERS
+    // ==========================
     const supersalerOrders = await Order.find({
-      userId: { $in: supersalerUserIds },
-      orderStatus: "approved",
+      userId: { $in: supersalerIds },
+      isActive: true,
     })
       .populate({
         path: "userId",
-        select: "name phone role district thana",
+        select: "name email phone role district thana",
       })
-      .populate("items.productId")
-      .sort({ createdAt: -1 });
+      .populate({
+        path: "items.productId",
+        populate: [
+          {
+            path: "category",
+            select: "name",
+          },
+          {
+            path: "producer",
+            select: "name email phone",
+          },
+        ],
+      })
+      .sort({ createdAt: -1 })
+      .lean();
 
+    // ==========================
+    // RESPONSE
+    // ==========================
     return res.status(200).json({
-      message: "Approved supersaler orders fetched successfully",
-      total: supersalerOrders.length,
+      message: "Supersaler orders fetched successfully",
+      totalOrders: supersalerOrders.length,
       orders: supersalerOrders,
     });
 
   } catch (error) {
+
+    console.error(
+      "getAllSupersalerOrdersForAdmin error:",
+      error
+    );
+
     return res.status(500).json({
       message: "Server error",
       error: error.message,
@@ -1724,3 +1798,10 @@ export const getApprovedSupersalerProducts = async (req, res) => {
     });
   }
 };
+
+
+// admin view supersaller order
+
+export const getSupersalerOrders = async (req, res) => {
+
+}
