@@ -55,6 +55,9 @@ import {
   updateWholesalerOrderStatus,
   getAllConsumerOrdersForAdmin,
   updateConsumerOrderStatus,
+  adminGetWholesalerOrders,
+  adminApproveOrder,
+  adminRejectOrder,
 } from "../../controllers/admin/adminController.js";
 import multer from "multer";
 import path from 'path';
@@ -302,5 +305,25 @@ router.get(
   "/supersaler-products/approved", verifyToken, verifyAdmin,
   getApprovedSupersalerProducts
 );
+
+// admin view wholesaler order
+
+router.get(
+  "/wholesaler/orders",
+  verifyToken,verifyAdmin,
+  adminGetWholesalerOrders
+);
+
+
+router.put(
+  "/wholesaler/orders/approve/:orderId",
+  verifyToken,
+  adminApproveOrder
+);
+
+router.put(
+  "/wholesaler/orders/reject/:orderId",
+  verifyToken, adminRejectOrder
+)
 
 export default router;

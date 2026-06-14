@@ -1992,3 +1992,148 @@ export const getApprovedSupersalerProducts = async (req, res) => {
 export const getSupersalerOrders = async (req, res) => {
 
 }
+
+
+// admin get wholesaler order
+import BulkOrder from "../../models/BulkOrder.js";
+
+export const adminGetWholesalerOrders = async (req, res) => {
+  try {
+    // 1. Admin check
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const { status, paymentStatus } = req.query;
+
+    // 2. Build filter dynamically
+    const filter = {};
+
+    if (status) {
+      filter.orderStatus = status;
+    }
+
+    if (paymentStatus) {
+      filter.paymentStatus = paymentStatus;
+    }
+
+    // 3. Fetch orders
+    const orders = await BulkOrder.find(filter)
+      .populate("wholesaler", "name phone email district thana")
+      .populate("producer", "name phone email")
+      .populate("product", "productName image price")
+      .populate("sellPost", "pricePerUnit remainingQuantity")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      message: "All wholesaler orders fetched successfully",
+      total: orders.length,
+      orders,
+    });
+  } catch (error) {
+    console.error("ADMIN ORDER ERROR:", error);
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+
+// import BulkOrder from "../../models/BulkOrder.js";
+// wholesaler approved order
+export const adminApproveOrder = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const { orderId } = req.params;
+
+    const order = await BulkOrder.findOne({ orderId });
+
+    if (!order) {
+      return res.status(404).json({
+        message: "Order not found",
+      });
+    }
+
+    // already approved
+    if (order.orderStatus === "approved") {
+      return res.status(400).json({
+        message: "Order already approved",
+      });
+    }
+
+    // must be paid before approval (IMPORTANT BUSINESS RULE)
+    if (order.paymentStatus !== "paid") {
+      return res.status(400).json({
+        message: "Order must be paid before approval",
+      });
+    }
+
+    order.orderStatus = "approved";
+    order.approvedBy = req.user.id;
+    order.approvedAt = new Date();
+
+    await order.save();
+
+    return res.status(200).json({
+      message: "Order approved successfully",
+      order,
+    });
+  } catch (error) {
+    console.error("ADMIN APPROVE ERROR:", error);
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+// wholesaler reject order
+export const adminRejectOrder = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const { orderId } = req.params;
+
+    const order = await BulkOrder.findOne({ orderId });
+
+    if (!order) {
+      return res.status(404).json({
+        message: "Order not found",
+      });
+    }
+
+    order.orderStatus = "rejected";
+    order.rejectedBy = req.user.id;
+    order.rejectedAt = new Date();
+
+    await order.save();
+
+    return res.status(200).json({
+      message: "Order rejected successfully",
+      order,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};

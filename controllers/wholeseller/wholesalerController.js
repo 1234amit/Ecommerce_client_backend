@@ -262,96 +262,7 @@ export const wholesalerSellProduct = async (req, res) => {
 // };
 
 
-// export const getBulkPostsForWholesaler = async (req, res) => {
-//   try {
-//     // ✅ Role Check
-//     if (req.user.role !== "wholesaler") {
-//       return res.status(403).json({ message: "Unauthorized access" });
-//     }
-
-//     // ✅ district & thana validation
-//     const wholesalerDistrict = req.user.district?.trim();
-//     const wholesalerThana = req.user.thana?.trim();
-
-//     if (!wholesalerDistrict || !wholesalerThana) {
-//       return res.status(400).json({
-//         message: "Wholesaler district and thana are required",
-//       });
-//     }
-
-//     // ✅ Debug logs (keep for testing)
-//     console.log("WHOLESALER DISTRICT:", wholesalerDistrict);
-//     console.log("WHOLESALER THANA:", wholesalerThana);
-
-//     // ✅ Case-insensitive match using regex
-//     const posts = await SellPost.find({
-//       sellType: "bulk",
-//       isActive: true,
-//       district: { $regex: new RegExp("^" + wholesalerDistrict + "$", "i") },
-//       thana: { $regex: new RegExp("^" + wholesalerThana + "$", "i") },
-//     })
-//       .populate("product", "productName image category pricePerKg priceType unit")
-//       .populate("seller", "name phone district thana role")
-//       .populate("producer", "name phone district thana role")
-//       .sort({ createdAt: -1 });
-
-//     res.status(200).json({
-//       message: "Bulk posts fetched successfully",
-//       totalPosts: posts.length,
-//       posts,
-//     });
-//   } catch (error) {
-//     console.error("Error fetching bulk posts:", error);
-//     res.status(500).json({
-//       message: "Server error",
-//       error: error.message,
-//     });
-//   }
-// };
-
-
-
 // GET bulk posts for wholesaler (FIXED & ROBUST)
-// export const getBulkPostsForWholesaler = async (req, res) => {
-//   try {
-//     if (req.user.role !== "wholesaler") {
-//       return res.status(403).json({ message: "Unauthorized access" });
-//     }
-
-//     const userDistrict = req.user.district?.trim().toLowerCase();
-//     const userThana = req.user.thana?.trim().toLowerCase();
-
-//     const posts = await SellPost.find({
-//       sellType: "bulk",
-//       isActive: true,
-//     });
-
-//     const filtered = posts.filter((p) => {
-//       const district =
-//         (p.district || p.seller?.district || p.producer?.district)
-//           ?.trim()
-//           .toLowerCase();
-
-//       const thana =
-//         (p.thana || p.seller?.thana || p.producer?.thana)
-//           ?.trim()
-//           .toLowerCase();
-
-//       return district === userDistrict && thana === userThana;
-//     });
-
-//     return res.json({
-//       message: "Bulk posts fetched successfully",
-//       totalFound: filtered.length,
-//       posts: filtered,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       message: "Server error",
-//       error: error.message,
-//     });
-//   }
-// };
 
 export const getBulkPostsForWholesaler = async (req, res) => {
   try {
@@ -389,3 +300,344 @@ export const getBulkPostsForWholesaler = async (req, res) => {
 };
 
 
+// Get Single Product Details For Wholesaler
+export const getProductDetailsForWholesaler = async (req, res) => {
+  try {
+    if (req.user.role !== "wholesaler") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const { productId } = req.params;
+
+    const product = await Product.findOne({
+      _id: productId,
+      status: "approved",
+    })
+      .populate("producer", "name email phone division district thana")
+      .populate("category", "name");
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Product details fetched successfully",
+      product,
+    });
+  } catch (error) {
+    console.error("Error fetching product details:", error);
+
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+// Get Single Bulk Post Details For Wholesaler
+export const getBulkPostDetailsForWholesaler = async (req, res) => {
+  try {
+    if (req.user.role !== "wholesaler") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const { postId } = req.params;
+
+    const post = await SellPost.findOne({
+      _id: postId,
+      sellType: "bulk",
+      isActive: true,
+      remainingQuantity: { $gt: 0 },
+      visibility: { $in: ["all", "wholesaler"] },
+    })
+      .populate({
+        path: "product",
+        populate: {
+          path: "category",
+          select: "name",
+        },
+      })
+      .populate("seller", "name email phone division district thana");
+
+    if (!post) {
+      return res.status(404).json({
+        message: "Bulk post not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Bulk post details fetched successfully",
+      post,
+    });
+  } catch (error) {
+    console.error("Error fetching bulk post details:", error);
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+// create bulk order for wholesaler
+
+import BulkOrder from "../../models/BulkOrder.js";
+// import SellPost from "../../models/SellPost.js";
+
+export const createBulkOrder = async (req, res) => {
+  try {
+    if (req.user.role !== "wholesaler") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const { sellPostId, quantity, notes } = req.body;
+
+    const sellPost = await SellPost.findById(sellPostId)
+      .populate("product")
+      .populate("seller");
+
+    if (!sellPost) {
+      return res.status(404).json({
+        message: "Sell post not found",
+      });
+    }
+
+    if (!sellPost.isActive) {
+      return res.status(400).json({
+        message: "This post is not active",
+      });
+    }
+
+    if (quantity > sellPost.remainingQuantity) {
+      return res.status(400).json({
+        message: `Only ${sellPost.remainingQuantity} available`,
+      });
+    }
+
+    // ✅ FIX HERE (IMPORTANT)
+    const unitPrice =
+      sellPost.pricePerUnit ||
+      sellPost.unitPrice ||
+      sellPost.product?.price;
+
+    if (!unitPrice) {
+      return res.status(400).json({
+        message: "Unit price not found in sell post",
+      });
+    }
+
+    const totalAmount = Number(unitPrice) * Number(quantity);
+
+    if (isNaN(totalAmount)) {
+      return res.status(400).json({
+        message: "Invalid price calculation",
+      });
+    }
+
+    const order = await BulkOrder.create({
+      orderId: `BULK-${Date.now()}`,
+      wholesaler: req.user.id,
+      producer: sellPost.seller._id,
+      sellPost: sellPost._id,
+      product: sellPost.product._id,
+      quantity,
+      unitPrice,
+      totalAmount,
+      notes,
+    });
+
+    res.status(201).json({
+      message: "Bulk order created successfully",
+      order,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+
+export const getWholesalerOwnOrders = async (req, res) => {
+  try {
+    if (req.user.role !== "wholesaler") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const { status } = req.query;
+
+    // Build filter
+    const filter = {
+      wholesaler: req.user.id,
+    };
+
+    // Optional status filter
+    if (status) {
+      filter.orderStatus = status;
+    }
+
+    const orders = await BulkOrder.find(filter)
+      .populate("product", "productName image price")
+      .populate("sellPost", "title pricePerUnit remainingQuantity")
+      .populate("producer", "name phone email")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      message: "Wholesaler orders fetched successfully",
+      total: orders.length,
+      orders,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+
+export const getWholesalerOrderProducts = async (req, res) => {
+  try {
+    if (req.user.role !== "wholesaler") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const { status } = req.query;
+
+    const filter = {
+      wholesaler: req.user.id,
+    };
+
+    if (status) {
+      filter.orderStatus = status;
+    }
+
+    const orders = await BulkOrder.find(filter)
+      .populate("product", "productName image price category")
+      .populate("sellPost", "pricePerUnit remainingQuantity")
+      .populate("producer", "name phone")
+      .sort({ createdAt: -1 });
+
+    // 🔥 Convert orders → product view
+    const products = orders.map((order) => ({
+      orderId: order.orderId,
+      orderStatus: order.orderStatus,
+      quantity: order.quantity,
+      unitPrice: order.unitPrice,
+      totalAmount: order.totalAmount,
+
+      product: order.product,
+
+      producer: order.producer,
+
+      sellPost: order.sellPost,
+
+      createdAt: order.createdAt,
+    }));
+
+    res.status(200).json({
+      message: "Wholesaler order products fetched successfully",
+      total: products.length,
+      products,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+
+// import BulkOrder from "../../models/BulkOrder.js";
+
+export const payBulkOrderCOD = async (req, res) => {
+  try {
+    if (req.user.role !== "wholesaler") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const { orderId } = req.params;
+
+    const order =
+      (await BulkOrder.findOne({ orderId })) ||
+      (await BulkOrder.findById(orderId));
+
+    if (!order) {
+      return res.status(404).json({
+        message: "Order not found",
+      });
+    }
+
+    // 🛡️ FIX: prevent crash if field missing
+    if (!order.wholesaler) {
+      return res.status(400).json({
+        message: "Invalid order data (missing wholesaler)",
+      });
+    }
+
+    // 🔒 ownership check (SAFE)
+    if (order.wholesaler.toString() !== req.user.id.toString()) {
+      return res.status(403).json({
+        message: "You cannot access this order",
+      });
+    }
+
+    // COD check
+    if (order.paymentMethod !== "cash_on_delivery") {
+      return res.status(400).json({
+        message: "This order is not COD payment method",
+      });
+    }
+
+    // already paid
+    if (order.paymentStatus === "paid") {
+      return res.status(400).json({
+        message: "Order already marked as paid",
+      });
+    }
+
+    order.paymentStatus = "paid";
+    order.paymentPaidAt = new Date();
+
+    await order.save();
+
+    return res.status(200).json({
+      message: "COD payment marked as paid successfully",
+      order,
+    });
+  } catch (error) {
+    console.error("COD PAYMENT ERROR:", error);
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};

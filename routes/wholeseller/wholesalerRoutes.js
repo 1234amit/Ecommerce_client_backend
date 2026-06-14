@@ -3,10 +3,16 @@ import { verifyToken } from "../../middleware/verifyToken.js";
 import { verifyWholesaler } from "../../middleware/wholeseller/verifyWholesaler.js";
 import {
   changeWholesalerPassword,
+  createBulkOrder,
   getApprovedProductsForWholesaler,
+  getBulkPostDetailsForWholesaler,
   // getBulkPosts,
   getBulkPostsForWholesaler,
+  getProductDetailsForWholesaler,
+  getWholesalerOrderProducts,
+  getWholesalerOwnOrders,
   getWholesalerProfile,
+  payBulkOrderCOD,
   updateWholesalerProfile,
   updateWholesalerProfileImage,
   wholesalerSellProduct,
@@ -73,6 +79,46 @@ router.put("/products/sell/:productId", verifyToken, verifyWholesaler, wholesale
 router.get("/bulk-posts", verifyTokenwholesaler, getBulkPostsForWholesaler);
 
 
+router.get(
+  "/products/:productId",
+  verifyToken,
+  verifyWholesaler,
+  getProductDetailsForWholesaler
+);
+
+
+router.get(
+  "/bulk-posts/:postId",
+  verifyTokenwholesaler,
+  getBulkPostDetailsForWholesaler
+);
+
+
+router.post(
+  "/orders",
+  verifyTokenwholesaler,
+  createBulkOrder
+);
+
+
+router.get(
+  "/orders/my-orders",
+  verifyTokenwholesaler,
+  getWholesalerOwnOrders
+);
+
+
+router.get(
+  "/orders/products",
+  verifyTokenwholesaler,
+  getWholesalerOrderProducts
+);
+
+router.put(
+  "/orders/pay/:orderId",
+  verifyTokenwholesaler,
+  payBulkOrderCOD
+);
 
 
 // Error handling middleware for multer
