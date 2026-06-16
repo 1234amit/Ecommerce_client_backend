@@ -4,7 +4,7 @@ import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = express.Router();
 // create review
-router.post("/create-review", verifyToken, createReview);
+router.post("/create-review", createReview);
 
 // get review
 router.get("/get-review/:productId", verifyToken, getReviewsByProduct);
