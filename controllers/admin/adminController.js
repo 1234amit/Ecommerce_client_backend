@@ -4,6 +4,7 @@ import Product from "../../models/Product.js";
 import Notification from "../../models/Notification.js";
 import Order from "../../models/Order.js";
 // import Product from "../models/Product.js";
+import SellPost from "../../models/SellPost.js"; // ✅ ADD THIS
 
 
 // Get Admin Profile
@@ -1814,21 +1815,32 @@ export const getPendingSupersalerProductsForAdmin = async (req, res) => {
 };
 
 
+
 export const approveSupersalerProductByAdmin = async (req, res) => {
   try {
+    // ==========================
+    // Admin check
+    // ==========================
     if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Unauthorized access" });
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
     }
 
     const { productId } = req.params;
 
+    // ==========================
+    // Get product
+    // ==========================
     const product = await Product.findById(productId).populate({
       path: "producer",
-      select: "name phone role",
+      select: "name phone role district thana",
     });
 
     if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+      return res.status(404).json({
+        message: "Product not found",
+      });
     }
 
     if (product.producer?.role !== "supersaler") {
@@ -1837,17 +1849,81 @@ export const approveSupersalerProductByAdmin = async (req, res) => {
       });
     }
 
+    // ==========================
+    // APPROVE PRODUCT
+    // ==========================
     product.status = "approved";
     product.approvedBy = req.user._id;
     product.approvedAt = new Date();
 
     await product.save();
 
+    // ==========================
+    // BULK → SELLPOST (WHOLESALER)
+    // ==========================
+    if (
+      product.productType === "bulk" &&
+      product.addToSellPost === "yes"
+    ) {
+      const district =
+        product.producer?.district ||
+        product.district ||
+        "Unknown";
+
+      const thana =
+        product.producer?.thana ||
+        product.thana ||
+        "Unknown";
+
+      await SellPost.create({
+        product: product._id,
+        producer: product.producer?._id,
+        seller: product.producer?._id,
+        sellerRole: "supersaler",
+
+        sellType: "bulk",
+
+        quantity: Number(product.quantity || 0),
+        remainingQuantity: Number(product.quantity || 0),
+
+        unit: "kg",
+
+        basePricePerKg: 0,
+        sellingPricePerKg: Number(product.price || 0),
+
+        increasedAmountPerKg: 0,
+
+        commissionPercent: 1,
+        commissionAmountPerKg:
+          (Number(product.price || 0) * 1) / 100,
+
+        district,
+        thana,
+
+        visibility: "all",
+        isActive: true,
+      });
+    }
+
+    // ==========================
+    // RENTAL → CONSUMER ONLY
+    // ==========================
+    if (product.productType === "rental") {
+      product.isSelling = true; // or your consumer visibility flag
+      await product.save();
+    }
+
+    // ==========================
+    // RESPONSE
+    // ==========================
     return res.status(200).json({
       message: "Supersaler product approved successfully",
       product,
     });
+
   } catch (error) {
+    console.error("approveSupersalerProductByAdmin error:", error);
+
     return res.status(500).json({
       message: "Server error",
       error: error.message,
@@ -1855,48 +1931,6 @@ export const approveSupersalerProductByAdmin = async (req, res) => {
   }
 };
 
-// export const rejectSupersalerProductByAdmin = async (req, res) => {
-//   try {
-//     if (req.user.role !== "admin") {
-//       return res.status(403).json({ message: "Unauthorized access" });
-//     }
-
-//     const { productId } = req.params;
-//     const { reason } = req.body;
-
-//     const product = await Product.findById(productId).populate({
-//       path: "producer",
-//       select: "name phone role",
-//     });
-
-//     if (!product) {
-//       return res.status(404).json({ message: "Product not found" });
-//     }
-
-//     if (product.producer?.role !== "supersaler") {
-//       return res.status(400).json({
-//         message: "This product is not a supersaler product",
-//       });
-//     }
-
-//     product.status = "rejected";
-//     product.rejectedBy = req.user._id;
-//     product.rejectedAt = new Date();
-//     product.rejectionReason = reason || "Rejected by admin";
-
-//     await product.save();
-
-//     return res.status(200).json({
-//       message: "Supersaler product rejected successfully",
-//       product,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       message: "Server error",
-//       error: error.message,
-//     });
-//   }
-// };
 
 export const rejectSupersalerProductByAdmin = async (req, res) => {
   try {

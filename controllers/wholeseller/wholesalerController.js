@@ -264,41 +264,104 @@ export const wholesalerSellProduct = async (req, res) => {
 
 // GET bulk posts for wholesaler (FIXED & ROBUST)
 
+// export const getBulkPostsForWholesaler = async (req, res) => {
+//   try {
+//     if (req.user.role !== "wholesaler") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     const userDistrict = req.user.district?.trim();
+//     const userThana = req.user.thana?.trim();
+
+//     if (!userDistrict || !userThana) {
+//       return res.status(400).json({ message: "District and thana required" });
+//     }
+
+//     const posts = await SellPost.find({
+//       sellType: "bulk",
+//       isActive: true,
+//       remainingQuantity: { $gt: 0 }, // 🔥 only available stock
+//       district: userDistrict,
+//       thana: userThana,
+//       visibility: { $in: ["all", "wholesaler"] },
+//     }).sort({ createdAt: -1 });
+
+//     return res.json({
+//       message: "Bulk posts fetched successfully",
+//       totalFound: posts.length,
+//       posts,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const getBulkPostsForWholesaler = async (req, res) => {
   try {
+    // ==========================
+    // Role Check
+    // ==========================
     if (req.user.role !== "wholesaler") {
-      return res.status(403).json({ message: "Unauthorized access" });
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
     }
 
+    // ==========================
+    // User Location
+    // ==========================
     const userDistrict = req.user.district?.trim();
     const userThana = req.user.thana?.trim();
 
     if (!userDistrict || !userThana) {
-      return res.status(400).json({ message: "District and thana required" });
+      return res.status(400).json({
+        message: "User district and thana are required",
+      });
     }
 
+    // ==========================
+    // Fetch Bulk Sell Posts
+    // ==========================
     const posts = await SellPost.find({
       sellType: "bulk",
+
+      // only active listings
       isActive: true,
-      remainingQuantity: { $gt: 0 }, // 🔥 only available stock
+
+      // stock available only
+      remainingQuantity: { $gt: 0 },
+
+      // location match
       district: userDistrict,
       thana: userThana,
-      visibility: { $in: ["all", "wholesaler"] },
-    }).sort({ createdAt: -1 });
 
-    return res.json({
+      // visibility rules
+      visibility: { $in: ["all", "wholesaler"] },
+    })
+      .populate("product", "productName image price description category")
+      .populate("producer", "name phone")
+      .sort({ createdAt: -1 });
+
+    // ==========================
+    // Response
+    // ==========================
+    return res.status(200).json({
       message: "Bulk posts fetched successfully",
       totalFound: posts.length,
       posts,
     });
   } catch (error) {
+    console.error("getBulkPostsForWholesaler error:", error);
+
     return res.status(500).json({
       message: "Server error",
       error: error.message,
     });
   }
 };
-
 
 // Get Single Product Details For Wholesaler
 export const getProductDetailsForWholesaler = async (req, res) => {
