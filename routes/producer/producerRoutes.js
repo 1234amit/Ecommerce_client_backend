@@ -84,10 +84,22 @@ router.get("/get-allcategory", verifyToken,
   verifyProducer, getAllCategories);
 
 // Add Product (accepts image and secondaryImages as text URLs)
+// router.post(
+//   "/add-product",
+//   verifyToken,
+//   verifyProducer,
+//   addProduct
+// );
+
+
 router.post(
   "/add-product",
   verifyToken,
   verifyProducer,
+  upload.fields([
+    { name: "image", maxCount: 1 },
+    { name: "secondaryImages", maxCount: 5 }
+  ]),
   addProduct
 );
 

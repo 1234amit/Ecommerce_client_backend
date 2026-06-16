@@ -294,10 +294,129 @@ export const changeProducerPassword = async (req, res) => {
 //   }
 // };
 
+// export const addProduct = async (req, res) => {
+//   try {
+//     if (!req.user || !req.user._id) {
+//       return res.status(401).json({ message: "Unauthorized" });
+//     }
+
+//     const producerId = req.user._id;
+
+//     const {
+//       productName,
+//       quantity,
+//       productType,
+//       unit,
+//       price,
+//       priceType,
+//       description,
+//       category,
+//       addToSellPost,
+//       image,
+//       secondaryImages,
+//     } = req.body;
+
+//     if (
+//       !productName ||
+//       !quantity ||
+//       !unit ||
+//       !price ||
+//       !priceType ||
+//       !productType ||
+//       !description ||
+//       !category ||
+//       !image
+//     ) {
+//       return res.status(400).json({ message: "All fields are required" });
+//     }
+
+//     const existingCategory = await Category.findById(category);
+//     if (!existingCategory) {
+//       return res.status(400).json({ message: "Invalid category ID" });
+//     }
+
+//     let secondaryImagesArr = [];
+//     if (secondaryImages) {
+//       if (Array.isArray(secondaryImages)) secondaryImagesArr = secondaryImages;
+//       else if (typeof secondaryImages === "string") secondaryImagesArr = [secondaryImages];
+//     }
+
+//     const qty = Number(quantity);
+//     const inputPrice = Number(price);
+
+//     if (isNaN(qty) || isNaN(inputPrice)) {
+//       return res.status(400).json({ message: "Quantity and price must be valid numbers" });
+//     }
+
+//     // convert to kg
+//     let quantityInKg = qty;
+//     if (unit === "ton") {
+//       quantityInKg = qty * 1000;
+//     }
+
+//     let totalPrice = 0;
+//     let pricePerKg = 0;
+
+//     if (priceType === "per_unit") {
+//       // price means per kg
+//       pricePerKg = inputPrice;
+//       totalPrice = quantityInKg * pricePerKg;
+//     } else if (priceType === "total") {
+//       // price means total
+//       totalPrice = inputPrice;
+//       pricePerKg = totalPrice / quantityInKg;
+//     } else {
+//       return res.status(400).json({ message: "Invalid priceType" });
+//     }
+
+//     const newProduct = new Product({
+//       producer: producerId,
+//       image: String(image),
+//       secondaryImages: secondaryImagesArr.map(String),
+//       productName: String(productName),
+
+//       quantity: qty,
+//       unit,
+//       price: inputPrice,
+//       priceType,
+
+//       totalPrice,
+//       pricePerKg,
+
+//       productType,
+
+//       previousPrice: inputPrice,
+//       priceHistory: [{ price: inputPrice, changedAt: new Date() }],
+
+//       description: String(description),
+//       category,
+
+//       addToSellPost: addToSellPost ? String(addToSellPost) : "no",
+
+//       status: "pending",
+//       isSelling: false,
+//       approvedBy: null,
+//       approvedAt: null,
+//     });
+
+//     const savedProduct = await newProduct.save();
+
+//     res.status(201).json({
+//       message: "Product added successfully",
+//       product: savedProduct,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
+
+
 export const addProduct = async (req, res) => {
   try {
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
     }
 
     const producerId = req.user._id;
@@ -305,15 +424,20 @@ export const addProduct = async (req, res) => {
     const {
       productName,
       quantity,
+      productType,
       unit,
       price,
       priceType,
       description,
       category,
       addToSellPost,
-      image,
-      secondaryImages,
     } = req.body;
+
+    // Main image
+    const imageFile = req.files?.image?.[0];
+
+    // Secondary images
+    const secondaryImageFiles = req.files?.secondaryImages || [];
 
     if (
       !productName ||
@@ -321,33 +445,42 @@ export const addProduct = async (req, res) => {
       !unit ||
       !price ||
       !priceType ||
+      !productType ||
       !description ||
-      !category ||
-      !image
+      !category
     ) {
-      return res.status(400).json({ message: "All fields are required" });
+      return res.status(400).json({
+        message: "All required fields must be provided",
+      });
     }
 
+    if (!imageFile) {
+      return res.status(400).json({
+        message: "Product image is required",
+      });
+    }
+
+    // Validate category
     const existingCategory = await Category.findById(category);
-    if (!existingCategory) {
-      return res.status(400).json({ message: "Invalid category ID" });
-    }
 
-    let secondaryImagesArr = [];
-    if (secondaryImages) {
-      if (Array.isArray(secondaryImages)) secondaryImagesArr = secondaryImages;
-      else if (typeof secondaryImages === "string") secondaryImagesArr = [secondaryImages];
+    if (!existingCategory) {
+      return res.status(400).json({
+        message: "Invalid category ID",
+      });
     }
 
     const qty = Number(quantity);
     const inputPrice = Number(price);
 
     if (isNaN(qty) || isNaN(inputPrice)) {
-      return res.status(400).json({ message: "Quantity and price must be valid numbers" });
+      return res.status(400).json({
+        message: "Quantity and price must be valid numbers",
+      });
     }
 
-    // convert to kg
+    // Convert quantity to kg
     let quantityInKg = qty;
+
     if (unit === "ton") {
       quantityInKg = qty * 1000;
     }
@@ -356,38 +489,57 @@ export const addProduct = async (req, res) => {
     let pricePerKg = 0;
 
     if (priceType === "per_unit") {
-      // price means per kg
       pricePerKg = inputPrice;
       totalPrice = quantityInKg * pricePerKg;
     } else if (priceType === "total") {
-      // price means total
       totalPrice = inputPrice;
       pricePerKg = totalPrice / quantityInKg;
     } else {
-      return res.status(400).json({ message: "Invalid priceType" });
+      return res.status(400).json({
+        message: "Invalid priceType",
+      });
     }
+
+    // Store relative path only
+    const imagePath = imageFile.path.replace(/\\/g, "/");
+
+    const secondaryImagePaths = secondaryImageFiles.map((file) =>
+      file.path.replace(/\\/g, "/")
+    );
 
     const newProduct = new Product({
       producer: producerId,
-      image: String(image),
-      secondaryImages: secondaryImagesArr.map(String),
+
+      image: imagePath,
+      secondaryImages: secondaryImagePaths,
+
       productName: String(productName),
 
       quantity: qty,
       unit,
+
       price: inputPrice,
       priceType,
 
       totalPrice,
       pricePerKg,
 
+      productType,
+
       previousPrice: inputPrice,
-      priceHistory: [{ price: inputPrice, changedAt: new Date() }],
+
+      priceHistory: [
+        {
+          price: inputPrice,
+          changedAt: new Date(),
+        },
+      ],
 
       description: String(description),
+
       category,
 
-      addToSellPost: addToSellPost ? String(addToSellPost) : "no",
+      addToSellPost: addToSellPost || "no",
 
       status: "pending",
       isSelling: false,
@@ -398,13 +550,22 @@ export const addProduct = async (req, res) => {
     const savedProduct = await newProduct.save();
 
     res.status(201).json({
+      success: true,
       message: "Product added successfully",
       product: savedProduct,
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Add Product Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
   }
 };
+
+
 
 
 export const getAllProducts = async (req, res) => {
