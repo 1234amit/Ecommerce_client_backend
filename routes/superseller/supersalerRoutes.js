@@ -4,17 +4,20 @@ import { verifyToken } from "../../middleware/verifyToken.js";
 import {
   addSupersalerProduct,
   changeSupersalerPassword,
+  deleteSupersalerOwnProduct,
   getApprovedProductsForSuperseller,
   // getBulkPosts,
   getBulkPostsForSupersaler,
   getSupersalerBuyOrders,
   getSupersalerOrders,
+  getSupersalerOwnProductById,
   getSupersalerOwnProducts,
   getSupersalerProfile,
   getSupersalerPurchasedProducts,
   // getSupersalerPurchases,
   supersalerCheckoutCOD,
   supersellerSellProduct,
+  updateSupersalerOwnProduct,
   updateSupersalerProfile,
   updateSupersalerProfileImage,
 } from "../../controllers/superseller/superSellerController.js";
@@ -139,6 +142,21 @@ router.get(
   getSupersalerOwnProducts
 );
 
+
+router.get("/my-products/:id", verifyToken, getSupersalerOwnProductById)
+
+router.put(
+  "/my-products/:id",
+  verifyToken,
+  upload.single("image"),
+  updateSupersalerOwnProduct
+);
+
+router.delete(
+  "/my-products/:id",
+  verifyToken,
+  deleteSupersalerOwnProduct
+);
 
 router.get(
   "/get-supersaler-purchased-products",

@@ -947,4 +947,185 @@ export const addSupersalerProduct = async (req, res) => {
   }
 };
 
+export const getSupersalerOwnProductById = async (req, res) => {
+  try {
+    if (req.user.role !== "supersaler") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const product = await Product.findOne({
+      _id: req.params.id,
+      producer: req.user._id,
+    })
+      .populate("category", "name")
+      .populate("approvedBy", "name email");
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Product fetched successfully",
+      product,
+    });
+  } catch (error) {
+    console.error("getSupersalerOwnProductById error:", error);
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const updateSupersalerOwnProduct = async (req, res) => {
+  try {
+    if (req.user.role !== "supersaler") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const product = await Product.findOne({
+      _id: req.params.id,
+      producer: req.user._id,
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
+
+    const {
+      productName,
+      quantity,
+      price,
+      description,
+      category,
+      productType,
+      addToSellPost,
+      secondaryImages,
+      image,
+    } = req.body;
+
+    if (productName) {
+      product.productName = productName.trim();
+    }
+
+    if (quantity) {
+      product.quantity = quantity.toString();
+    }
+
+    if (price) {
+      product.previousPrice = product.price;
+      product.price = price.toString();
+    }
+
+    if (description) {
+      product.description = description.trim();
+    }
+
+    if (category) {
+      product.category = category;
+    }
+
+    if (productType) {
+      const validTypes = ["bulk", "rental"];
+
+      if (!validTypes.includes(productType)) {
+        return res.status(400).json({
+          message: "Invalid productType",
+        });
+      }
+
+      product.productType = productType;
+    }
+
+    if (addToSellPost) {
+      product.addToSellPost = addToSellPost;
+    }
+
+    // Main Image
+    if (req.file) {
+      product.image = req.file.path;
+    } else if (image) {
+      product.image = image;
+    }
+
+    // Secondary Images
+    if (secondaryImages) {
+      if (Array.isArray(secondaryImages)) {
+        product.secondaryImages = secondaryImages;
+      } else {
+        try {
+          product.secondaryImages = JSON.parse(secondaryImages);
+        } catch (err) {
+          console.log("secondaryImages parse error");
+        }
+      }
+    }
+
+    // Optional:
+    // Re-approval after update
+    product.status = "pending";
+    product.approvedBy = null;
+    product.approvedAt = null;
+
+    await product.save();
+
+    return res.status(200).json({
+      message: "Product updated successfully",
+      product,
+    });
+  } catch (error) {
+    console.error("updateSupersalerOwnProduct error:", error);
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
+
+export const deleteSupersalerOwnProduct = async (req, res) => {
+  try {
+    if (req.user.role !== "supersaler") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const product = await Product.findOne({
+      _id: req.params.id,
+      producer: req.user._id,
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
+
+    await Product.findByIdAndDelete(product._id);
+
+    return res.status(200).json({
+      message: "Product deleted successfully",
+    });
+  } catch (error) {
+    console.error("deleteSupersalerOwnProduct error:", error);
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
 
