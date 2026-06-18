@@ -1816,10 +1816,126 @@ export const getPendingSupersalerProductsForAdmin = async (req, res) => {
 
 
 
+// export const approveSupersalerProductByAdmin = async (req, res) => {
+//   try {
+//     // ==========================
+//     // Admin check
+//     // ==========================
+//     if (req.user.role !== "admin") {
+//       return res.status(403).json({
+//         message: "Unauthorized access",
+//       });
+//     }
+
+//     const { productId } = req.params;
+
+//     // ==========================
+//     // Get product
+//     // ==========================
+//     const product = await Product.findById(productId).populate({
+//       path: "producer",
+//       select: "name phone role district thana",
+//     });
+
+//     if (!product) {
+//       return res.status(404).json({
+//         message: "Product not found",
+//       });
+//     }
+
+//     if (product.producer?.role !== "supersaler") {
+//       return res.status(400).json({
+//         message: "This product is not a supersaler product",
+//       });
+//     }
+
+//     // ==========================
+//     // APPROVE PRODUCT
+//     // ==========================
+//     product.status = "approved";
+//     product.approvedBy = req.user._id;
+//     product.approvedAt = new Date();
+
+//     await product.save();
+
+//     // ==========================
+//     // BULK → SELLPOST (WHOLESALER)
+//     // ==========================
+//     if (
+//       product.productType === "bulk" &&
+//       product.addToSellPost === "yes"
+//     ) {
+//       const district =
+//         product.producer?.district ||
+//         product.district ||
+//         "Unknown";
+
+//       const thana =
+//         product.producer?.thana ||
+//         product.thana ||
+//         "Unknown";
+
+//       await SellPost.create({
+//         product: product._id,
+//         producer: product.producer?._id,
+//         seller: product.producer?._id,
+//         sellerRole: "supersaler",
+
+//         sellType: "bulk",
+
+//         quantity: Number(product.quantity || 0),
+//         remainingQuantity: Number(product.quantity || 0),
+
+//         unit: "kg",
+
+//         basePricePerKg: 0,
+//         sellingPricePerKg: Number(product.price || 0),
+
+//         increasedAmountPerKg: 0,
+
+//         commissionPercent: 1,
+//         commissionAmountPerKg:
+//           (Number(product.price || 0) * 1) / 100,
+
+//         district,
+//         thana,
+
+//         visibility: "all",
+//         isActive: true,
+//       });
+//     }
+
+//     // ==========================
+//     // RENTAL → CONSUMER ONLY
+//     // ==========================
+//     if (product.productType === "rental") {
+//       product.isSelling = true; // or your consumer visibility flag
+//       await product.save();
+//     }
+
+//     // ==========================
+//     // RESPONSE
+//     // ==========================
+//     return res.status(200).json({
+//       message: "Supersaler product approved successfully",
+//       product,
+//     });
+
+//   } catch (error) {
+//     console.error("approveSupersalerProductByAdmin error:", error);
+
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+
 export const approveSupersalerProductByAdmin = async (req, res) => {
   try {
     // ==========================
-    // Admin check
+    // Admin Check
     // ==========================
     if (req.user.role !== "admin") {
       return res.status(403).json({
@@ -1830,7 +1946,7 @@ export const approveSupersalerProductByAdmin = async (req, res) => {
     const { productId } = req.params;
 
     // ==========================
-    // Get product
+    // Find Product
     // ==========================
     const product = await Product.findById(productId).populate({
       path: "producer",
@@ -1850,7 +1966,7 @@ export const approveSupersalerProductByAdmin = async (req, res) => {
     }
 
     // ==========================
-    // APPROVE PRODUCT
+    // Approve Product
     // ==========================
     product.status = "approved";
     product.approvedBy = req.user._id;
@@ -1858,71 +1974,127 @@ export const approveSupersalerProductByAdmin = async (req, res) => {
 
     await product.save();
 
-    // ==========================
-    // BULK → SELLPOST (WHOLESALER)
-    // ==========================
+    const district =
+      product.producer?.district ||
+      product.district ||
+      "Unknown";
+
+    const thana =
+      product.producer?.thana ||
+      product.thana ||
+      "Unknown";
+
+    // =====================================================
+    // BULK PRODUCT -> WHOLESALER SELL POST
+    // =====================================================
     if (
       product.productType === "bulk" &&
       product.addToSellPost === "yes"
     ) {
-      const district =
-        product.producer?.district ||
-        product.district ||
-        "Unknown";
-
-      const thana =
-        product.producer?.thana ||
-        product.thana ||
-        "Unknown";
-
       await SellPost.create({
         product: product._id,
+
         producer: product.producer?._id,
         seller: product.producer?._id,
+
         sellerRole: "supersaler",
 
         sellType: "bulk",
 
         quantity: Number(product.quantity || 0),
+        soldQuantity: 0,
         remainingQuantity: Number(product.quantity || 0),
 
         unit: "kg",
 
-        basePricePerKg: 0,
+        basePricePerKg: Number(product.price || 0),
+
         sellingPricePerKg: Number(product.price || 0),
 
         increasedAmountPerKg: 0,
 
         commissionPercent: 1,
+
         commissionAmountPerKg:
           (Number(product.price || 0) * 1) / 100,
+
+        totalPrice:
+          Number(product.price || 0) *
+          Number(product.quantity || 0),
+
+        totalCommission:
+          ((Number(product.price || 0) * 1) / 100) *
+          Number(product.quantity || 0),
 
         district,
         thana,
 
         visibility: "all",
+
         isActive: true,
       });
     }
 
-    // ==========================
-    // RENTAL → CONSUMER ONLY
-    // ==========================
-    if (product.productType === "rental") {
-      product.isSelling = true; // or your consumer visibility flag
-      await product.save();
+    // =====================================================
+    // RENTAL PRODUCT -> CONSUMER SELL POST
+    // =====================================================
+    if (
+      product.productType === "rental" &&
+      product.addToSellPost === "yes"
+    ) {
+      await SellPost.create({
+        product: product._id,
+
+        producer: product.producer?._id,
+        seller: product.producer?._id,
+
+        sellerRole: "supersaler",
+
+        sellType: "retail",
+
+        quantity: Number(product.quantity || 0),
+        soldQuantity: 0,
+        remainingQuantity: Number(product.quantity || 0),
+
+        unit: "kg",
+
+        basePricePerKg: Number(product.price || 0),
+
+        sellingPricePerKg: Number(product.price || 0),
+
+        increasedAmountPerKg: 0,
+
+        commissionPercent: 2,
+
+        commissionAmountPerKg:
+          (Number(product.price || 0) * 2) / 100,
+
+        totalPrice:
+          Number(product.price || 0) *
+          Number(product.quantity || 0),
+
+        totalCommission:
+          ((Number(product.price || 0) * 2) / 100) *
+          Number(product.quantity || 0),
+
+        district,
+        thana,
+
+        visibility: "consumer",
+
+        isActive: true,
+      });
     }
 
-    // ==========================
-    // RESPONSE
-    // ==========================
     return res.status(200).json({
       message: "Supersaler product approved successfully",
       product,
     });
-
   } catch (error) {
-    console.error("approveSupersalerProductByAdmin error:", error);
+    console.error(
+      "approveSupersalerProductByAdmin error:",
+      error
+    );
 
     return res.status(500).json({
       message: "Server error",
@@ -1930,7 +2102,6 @@ export const approveSupersalerProductByAdmin = async (req, res) => {
     });
   }
 };
-
 
 export const rejectSupersalerProductByAdmin = async (req, res) => {
   try {
