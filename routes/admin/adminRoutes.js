@@ -58,6 +58,8 @@ import {
   adminGetWholesalerOrders,
   adminApproveOrder,
   adminRejectOrder,
+  approveAllProductByAdmin,
+  rejectAllProductByAdmin,
 } from "../../controllers/admin/adminController.js";
 import multer from "multer";
 import path from 'path';
@@ -294,11 +296,25 @@ router.patch(
   verifyToken, verifyAdmin,
   approveSupersalerProductByAdmin
 );
+// all product approved into all users
+router.patch(
+  "/all/:productId/approve",
+  verifyToken, verifyAdmin,
+  approveAllProductByAdmin
+);
 
 router.patch(
   "/supersaler-products/:productId/reject",
   verifyToken, verifyAdmin,
   rejectSupersalerProductByAdmin
+);
+
+// all api reject product
+
+router.patch(
+  "/all/:productId/reject",
+  verifyToken, verifyAdmin,
+  rejectAllProductByAdmin
 );
 
 router.get(
