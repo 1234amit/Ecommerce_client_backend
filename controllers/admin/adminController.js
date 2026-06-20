@@ -2104,6 +2104,177 @@ export const approveSupersalerProductByAdmin = async (req, res) => {
 };
 
 //approved all product by admin
+// export const approveAllProductByAdmin = async (req, res) => {
+//   try {
+//     // ==========================
+//     // Admin Check
+//     // ==========================
+//     if (req.user.role !== "admin") {
+//       return res.status(403).json({
+//         message: "Unauthorized access",
+//       });
+//     }
+
+//     const { productId } = req.params;
+
+//     // ==========================
+//     // Find Product
+//     // ==========================
+//     const product = await Product.findById(productId).populate({
+//       path: "producer",
+//       select: "name phone role district thana",
+//     });
+
+//     if (!product) {
+//       return res.status(404).json({
+//         message: "Product not found",
+//       });
+//     }
+
+//     if (product.producer?.role !== "supersaler") {
+//       return res.status(400).json({
+//         message: "This product is not a supersaler product",
+//       });
+//     }
+
+//     // ==========================
+//     // Approve Product
+//     // ==========================
+//     product.status = "approved";
+//     product.approvedBy = req.user._id;
+//     product.approvedAt = new Date();
+
+//     await product.save();
+
+//     const district =
+//       product.producer?.district ||
+//       product.district ||
+//       "Unknown";
+
+//     const thana =
+//       product.producer?.thana ||
+//       product.thana ||
+//       "Unknown";
+
+//     // =====================================================
+//     // BULK PRODUCT -> WHOLESALER SELL POST
+//     // =====================================================
+//     if (
+//       product.productType === "bulk" &&
+//       product.addToSellPost === "yes"
+//     ) {
+//       await SellPost.create({
+//         product: product._id,
+
+//         producer: product.producer?._id,
+//         seller: product.producer?._id,
+
+//         sellerRole: "supersaler",
+
+//         sellType: "bulk",
+
+//         quantity: Number(product.quantity || 0),
+//         soldQuantity: 0,
+//         remainingQuantity: Number(product.quantity || 0),
+
+//         unit: "kg",
+
+//         basePricePerKg: Number(product.price || 0),
+
+//         sellingPricePerKg: Number(product.price || 0),
+
+//         increasedAmountPerKg: 0,
+
+//         commissionPercent: 1,
+
+//         commissionAmountPerKg:
+//           (Number(product.price || 0) * 1) / 100,
+
+//         totalPrice:
+//           Number(product.price || 0) *
+//           Number(product.quantity || 0),
+
+//         totalCommission:
+//           ((Number(product.price || 0) * 1) / 100) *
+//           Number(product.quantity || 0),
+
+//         district,
+//         thana,
+
+//         visibility: "all",
+
+//         isActive: true,
+//       });
+//     }
+
+//     // =====================================================
+//     // RENTAL PRODUCT -> CONSUMER SELL POST
+//     // =====================================================
+//     if (
+//       product.productType === "rental" &&
+//       product.addToSellPost === "yes"
+//     ) {
+//       await SellPost.create({
+//         product: product._id,
+
+//         producer: product.producer?._id,
+//         seller: product.producer?._id,
+
+//         sellerRole: "supersaler",
+
+//         sellType: "retail",
+
+//         quantity: Number(product.quantity || 0),
+//         soldQuantity: 0,
+//         remainingQuantity: Number(product.quantity || 0),
+
+//         unit: "kg",
+
+//         basePricePerKg: Number(product.price || 0),
+
+//         sellingPricePerKg: Number(product.price || 0),
+
+//         increasedAmountPerKg: 0,
+
+//         commissionPercent: 2,
+
+//         commissionAmountPerKg:
+//           (Number(product.price || 0) * 2) / 100,
+
+//         totalPrice:
+//           Number(product.price || 0) *
+//           Number(product.quantity || 0),
+
+//         totalCommission:
+//           ((Number(product.price || 0) * 2) / 100) *
+//           Number(product.quantity || 0),
+
+//         district,
+//         thana,
+
+//         visibility: "consumer",
+
+//         isActive: true,
+//       });
+//     }
+
+//     return res.status(200).json({
+//       message: "product approved successfully",
+//       product,
+//     });
+//   } catch (error) {
+//     console.error(
+//       "approveAllProductByAdmin error:",
+//       error
+//     );
+
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const approveAllProductByAdmin = async (req, res) => {
   try {
     // ==========================
@@ -2131,11 +2302,8 @@ export const approveAllProductByAdmin = async (req, res) => {
       });
     }
 
-    if (product.producer?.role !== "supersaler") {
-      return res.status(400).json({
-        message: "This product is not a supersaler product",
-      });
-    }
+    const isSupersalerProduct =
+      product.producer?.role === "supersaler";
 
     // ==========================
     // Approve Product
@@ -2157,105 +2325,110 @@ export const approveAllProductByAdmin = async (req, res) => {
       "Unknown";
 
     // =====================================================
-    // BULK PRODUCT -> WHOLESALER SELL POST
+    // ONLY FOR SUPERSALER PRODUCTS
     // =====================================================
-    if (
-      product.productType === "bulk" &&
-      product.addToSellPost === "yes"
-    ) {
-      await SellPost.create({
-        product: product._id,
+    if (isSupersalerProduct) {
+      // =====================================================
+      // BULK PRODUCT -> WHOLESALER SELL POST
+      // =====================================================
+      if (
+        product.productType === "bulk" &&
+        product.addToSellPost === "yes"
+      ) {
+        await SellPost.create({
+          product: product._id,
 
-        producer: product.producer?._id,
-        seller: product.producer?._id,
+          producer: product.producer?._id,
+          seller: product.producer?._id,
 
-        sellerRole: "supersaler",
+          sellerRole: "supersaler",
 
-        sellType: "bulk",
+          sellType: "bulk",
 
-        quantity: Number(product.quantity || 0),
-        soldQuantity: 0,
-        remainingQuantity: Number(product.quantity || 0),
+          quantity: Number(product.quantity || 0),
+          soldQuantity: 0,
+          remainingQuantity: Number(product.quantity || 0),
 
-        unit: "kg",
+          unit: "kg",
 
-        basePricePerKg: Number(product.price || 0),
+          basePricePerKg: Number(product.price || 0),
 
-        sellingPricePerKg: Number(product.price || 0),
+          sellingPricePerKg: Number(product.price || 0),
 
-        increasedAmountPerKg: 0,
+          increasedAmountPerKg: 0,
 
-        commissionPercent: 1,
+          commissionPercent: 1,
 
-        commissionAmountPerKg:
-          (Number(product.price || 0) * 1) / 100,
+          commissionAmountPerKg:
+            (Number(product.price || 0) * 1) / 100,
 
-        totalPrice:
-          Number(product.price || 0) *
-          Number(product.quantity || 0),
+          totalPrice:
+            Number(product.price || 0) *
+            Number(product.quantity || 0),
 
-        totalCommission:
-          ((Number(product.price || 0) * 1) / 100) *
-          Number(product.quantity || 0),
+          totalCommission:
+            ((Number(product.price || 0) * 1) / 100) *
+            Number(product.quantity || 0),
 
-        district,
-        thana,
+          district,
+          thana,
 
-        visibility: "all",
+          visibility: "all",
 
-        isActive: true,
-      });
-    }
+          isActive: true,
+        });
+      }
 
-    // =====================================================
-    // RENTAL PRODUCT -> CONSUMER SELL POST
-    // =====================================================
-    if (
-      product.productType === "rental" &&
-      product.addToSellPost === "yes"
-    ) {
-      await SellPost.create({
-        product: product._id,
+      // =====================================================
+      // RENTAL PRODUCT -> CONSUMER SELL POST
+      // =====================================================
+      if (
+        product.productType === "rental" &&
+        product.addToSellPost === "yes"
+      ) {
+        await SellPost.create({
+          product: product._id,
 
-        producer: product.producer?._id,
-        seller: product.producer?._id,
+          producer: product.producer?._id,
+          seller: product.producer?._id,
 
-        sellerRole: "supersaler",
+          sellerRole: "supersaler",
 
-        sellType: "retail",
+          sellType: "retail",
 
-        quantity: Number(product.quantity || 0),
-        soldQuantity: 0,
-        remainingQuantity: Number(product.quantity || 0),
+          quantity: Number(product.quantity || 0),
+          soldQuantity: 0,
+          remainingQuantity: Number(product.quantity || 0),
 
-        unit: "kg",
+          unit: "kg",
 
-        basePricePerKg: Number(product.price || 0),
+          basePricePerKg: Number(product.price || 0),
 
-        sellingPricePerKg: Number(product.price || 0),
+          sellingPricePerKg: Number(product.price || 0),
 
-        increasedAmountPerKg: 0,
+          increasedAmountPerKg: 0,
 
-        commissionPercent: 2,
+          commissionPercent: 2,
 
-        commissionAmountPerKg:
-          (Number(product.price || 0) * 2) / 100,
+          commissionAmountPerKg:
+            (Number(product.price || 0) * 2) / 100,
 
-        totalPrice:
-          Number(product.price || 0) *
-          Number(product.quantity || 0),
+          totalPrice:
+            Number(product.price || 0) *
+            Number(product.quantity || 0),
 
-        totalCommission:
-          ((Number(product.price || 0) * 2) / 100) *
-          Number(product.quantity || 0),
+          totalCommission:
+            ((Number(product.price || 0) * 2) / 100) *
+            Number(product.quantity || 0),
 
-        district,
-        thana,
+          district,
+          thana,
 
-        visibility: "consumer",
+          visibility: "consumer",
 
-        isActive: true,
-      });
+          isActive: true,
+        });
+      }
     }
 
     return res.status(200).json({
@@ -2335,11 +2508,72 @@ export const rejectSupersalerProductByAdmin = async (req, res) => {
 };
 
 //reject all product by admin
+// export const rejectAllProductByAdmin = async (req, res) => {
+//   try {
+//     // ✅ Admin check
+//     if (req.user.role !== "admin") {
+//       return res.status(403).json({ message: "Unauthorized access" });
+//     }
+
+//     const { productId } = req.params;
+//     const { reason } = req.body;
+
+//     // ✅ Check product exists + populate producer
+//     const product = await Product.findById(productId).populate({
+//       path: "producer",
+//       select: "name phone role",
+//     });
+
+//     if (!product) {
+//       return res.status(404).json({ message: "Product not found" });
+//     }
+
+//     // ✅ Check supersaler product
+//     if (product.producer?.role !== "supersaler") {
+//       return res.status(400).json({
+//         message: "This product is not a supersaler product",
+//       });
+//     }
+
+//     // ✅ Update without validation issues
+//     const updatedProduct = await Product.findByIdAndUpdate(
+//       productId,
+//       {
+//         $set: {
+//           status: "rejected",
+//           rejectedBy: req.user._id,
+//           rejectedAt: new Date(),
+//           rejectionReason: reason || "Rejected by admin",
+//         },
+//       },
+//       { new: true }
+//     ).populate({
+//       path: "producer",
+//       select: "name phone role",
+//     });
+
+//     return res.status(200).json({
+//       message: "product rejected successfully",
+//       product: updatedProduct,
+//     });
+
+//   } catch (error) {
+//     console.error("Reject Product Error:", error);
+
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const rejectAllProductByAdmin = async (req, res) => {
   try {
     // ✅ Admin check
     if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Unauthorized access" });
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
     }
 
     const { productId } = req.params;
@@ -2352,17 +2586,12 @@ export const rejectAllProductByAdmin = async (req, res) => {
     });
 
     if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
-
-    // ✅ Check supersaler product
-    if (product.producer?.role !== "supersaler") {
-      return res.status(400).json({
-        message: "This product is not a supersaler product",
+      return res.status(404).json({
+        message: "Product not found",
       });
     }
 
-    // ✅ Update without validation issues
+    // ✅ Reject product (producer OR supersaler)
     const updatedProduct = await Product.findByIdAndUpdate(
       productId,
       {
@@ -2383,7 +2612,6 @@ export const rejectAllProductByAdmin = async (req, res) => {
       message: "product rejected successfully",
       product: updatedProduct,
     });
-
   } catch (error) {
     console.error("Reject Product Error:", error);
 
