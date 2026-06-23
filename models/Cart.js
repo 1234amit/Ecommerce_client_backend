@@ -18,6 +18,8 @@ const cartSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
     unique: true,
+    // enum: ["consumer", "producer", "wholesaler", "supersaler", "admin"]
+
   },
   items: [cartItemSchema]
 }, { timestamps: true });
