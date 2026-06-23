@@ -121,30 +121,30 @@ export const sendMessage = async (req, res) => {
       return res.status(400).json({ message: "This chat is no longer active" });
     }
     //6-24-26
-    // Get receiver (other participant or admin)
-    // let receiverId;
-    // if (senderRole === "admin") {
-    //   // Admin is sending message, receiver is the user
-    //   receiverId = chat.participants.find(id => id.toString() !== senderId.toString());
-    // } else {
-    //   // User is sending message, receiver is admin (if assigned) or the user themselves for now
-    //   receiverId = chat.assignedAdmin || senderId;
-    // }
+    //Get receiver (other participant or admin)
+    let receiverId;
+    if (senderRole === "admin") {
+      // Admin is sending message, receiver is the user
+      receiverId = chat.participants.find(id => id.toString() !== senderId.toString());
+    } else {
+      // User is sending message, receiver is admin (if assigned) or the user themselves for now
+      receiverId = chat.assignedAdmin || senderId;
+    }
 
-    let receiverId = null;
+    // let receiverId = null;
 
-if (senderRole === "admin") {
-  receiverId = chat.participants.find(
-    id => id.toString() !== senderId.toString()
-  );
-} else {
-  if (chat.assignedAdmin) {
-    receiverId = chat.assignedAdmin;
-  } else {
-    // fallback: no admin assigned yet → keep null or handle queue
-    receiverId = null;
-  }
-}
+// if (senderRole === "admin") {
+//   receiverId = chat.participants.find(
+//     id => id.toString() !== senderId.toString()
+//   );
+// } else {
+//   if (chat.assignedAdmin) {
+//     receiverId = chat.assignedAdmin;
+//   } else {
+//     // fallback: no admin assigned yet → keep null or handle queue
+//     receiverId = null;
+//   }
+// }
 
     // Create message
     const message = new Message({
