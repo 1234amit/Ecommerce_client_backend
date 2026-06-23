@@ -123,7 +123,7 @@ const messageSchema = new mongoose.Schema(
     // Message metadata
     senderRole: {
       type: String,
-      enum: ["admin", "consumer", "producer", "superseller", "wholesaler"],
+      enum: ["admin", "consumer", "producer", "supersaler", "wholesaler"],
     },
     // For file messages
     fileName: {
