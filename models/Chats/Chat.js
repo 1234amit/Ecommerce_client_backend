@@ -14,7 +14,7 @@ const chatSchema = new mongoose.Schema(
     },
     userType: {
       type: String,
-      enum: ["producer", "wholesaler", "superseller", "consumer"],
+      enum: ["producer", "wholesaler", "supersaler", "consumer"],
       required: true,
     },
     lastMessage: {
