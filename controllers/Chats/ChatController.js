@@ -11,7 +11,7 @@ export const createOrGetChat = async (req, res) => {
     const userRole = req.user.role;
 
     // Validate user role (only specific user types can chat with admin)
-    const allowedRoles = ["consumer", "producer", "wholesaler", "superseller"];
+    const allowedRoles = ["consumer", "producer", "wholesaler", "supersaler"];
     if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({ message: "Your user type is not allowed to create chats" });
     }
@@ -120,7 +120,7 @@ export const sendMessage = async (req, res) => {
     if (!chat.isActive) {
       return res.status(400).json({ message: "This chat is no longer active" });
     }
-
+    //6-24-26
     // Get receiver (other participant or admin)
     // let receiverId;
     // if (senderRole === "admin") {
