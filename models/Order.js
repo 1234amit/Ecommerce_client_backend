@@ -76,6 +76,11 @@ const orderSchema = new mongoose.Schema(
     adminActionAt: {
       type: Date,
     },
+
+    inventoryDeductedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

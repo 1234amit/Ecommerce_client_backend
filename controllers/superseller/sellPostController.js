@@ -260,6 +260,7 @@ export const createSellPost = async (req, res) => {
     const boughtOrders = await Order.find({
       userId: supersalerId,
       "items.productId": product._id,
+      paymentStatus: "paid",
       orderStatus: { $ne: "cancelled" },
     });
 
@@ -320,7 +321,7 @@ export const createSellPost = async (req, res) => {
 
     let totalPostedQty = 0;
     existingPosts.forEach((post) => {
-      totalPostedQty += Number(post.remainingQuantity || 0);
+      totalPostedQty += Number(post.quantity || 0);
     });
 
     const availableQty = totalBoughtQty - totalPostedQty;
@@ -377,7 +378,7 @@ export const createSellPost = async (req, res) => {
       quantity: Number(quantity),
       unit,
 
-      basePricePerKg: Number(product.pricePerKg || 0),
+      basePricePerKg: Number(product.pricePerKg || product.price || 0),
       sellingPricePerKg: Number(sellingPricePerKg),
 
       commissionPercent,

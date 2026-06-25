@@ -7,7 +7,7 @@ const router = express.Router();
 router.post("/create-review", createReview);
 
 // get review
-router.get("/get-review/:productId", verifyToken, getReviewsByProduct);
+router.get("/get-review/:productId", getReviewsByProduct);
 
 // get user own reviews
 

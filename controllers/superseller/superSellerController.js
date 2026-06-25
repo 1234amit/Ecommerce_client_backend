@@ -650,6 +650,7 @@ export const getSupersalerPurchasedProducts = async (req, res) => {
 
     // 1. Get paid orders (ONLY order is source of truth)
     const orders = await Order.find({
+      userId: supersalerId,
       paymentStatus: "paid",
       isActive: true,
     })
@@ -1127,5 +1128,4 @@ export const deleteSupersalerOwnProduct = async (req, res) => {
     });
   }
 };
-
 

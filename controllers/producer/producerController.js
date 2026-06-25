@@ -578,7 +578,7 @@ export const getAllProducts = async (req, res) => {
 
     res.json({
       message: "Products fetched successfully",
-      products,
+      products: products.filter((product) => Number(product.quantity || 0) > 0),
     });
   } catch (error) {
     res.status(500).json({
@@ -959,5 +959,4 @@ export const confirmSellingRequest = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
 

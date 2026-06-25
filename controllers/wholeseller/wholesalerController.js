@@ -634,6 +634,41 @@ export const getWholesalerOrderProducts = async (req, res) => {
   }
 };
 
+export const markWholesalerOrderProductSoldOffline = async (req, res) => {
+  try {
+    if (req.user.role !== "wholesaler") {
+      return res.status(403).json({
+        message: "Unauthorized access",
+      });
+    }
+
+    const { orderId } = req.params;
+
+    const order = await BulkOrder.findOne({
+      orderId,
+      wholesaler: req.user.id,
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        message: "Product order not found",
+      });
+    }
+
+    await BulkOrder.deleteOne({ _id: order._id });
+
+    return res.status(200).json({
+      message: "Product marked as sold offline and removed permanently",
+    });
+  } catch (error) {
+    console.error("markWholesalerOrderProductSoldOffline error:", error);
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
 
 
 // import BulkOrder from "../../models/BulkOrder.js";

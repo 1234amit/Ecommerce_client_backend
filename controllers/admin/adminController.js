@@ -6,6 +6,61 @@ import Order from "../../models/Order.js";
 // import Product from "../models/Product.js";
 import SellPost from "../../models/SellPost.js"; // ✅ ADD THIS
 
+const validOrderStatuses = [
+  "pending",
+  "confirmed",
+  "processing",
+  "shipped",
+  "delivered",
+  "cancelled",
+];
+
+const validPaymentStatuses = [
+  "pending",
+  "paid",
+  "failed",
+  "refunded",
+];
+
+const normalizeAdminOrderStatus = (status) => {
+  if (!status) return undefined;
+  if (status === "completed" || status === "approved") return "delivered";
+  return status;
+};
+
+const toNumber = (value) => {
+  const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const deductProducerInventoryForPaidOrder = async (order) => {
+  if (!order || order.inventoryDeductedAt || order.paymentStatus !== "paid") {
+    return;
+  }
+
+  for (const item of order.items || []) {
+    const productId = item.productId?._id || item.productId;
+    if (!productId) continue;
+
+    const product = await Product.findById(productId);
+    if (!product) continue;
+
+    const currentQuantity = toNumber(product.quantity);
+    const purchasedQuantity = toNumber(item.quantity);
+    const nextQuantity = Math.max(0, currentQuantity - purchasedQuantity);
+
+    product.quantity = String(nextQuantity);
+    if (nextQuantity === 0) {
+      product.addToSellPost = "no";
+      product.isSelling = false;
+    }
+
+    await product.save();
+  }
+
+  order.inventoryDeductedAt = new Date();
+  await order.save();
+};
 
 // Get Admin Profile
 export const getAdminProfile = async (req, res) => {
@@ -1334,11 +1389,8 @@ export const updateSupersalerOrderStatus = async (req, res) => {
     }
 
     const { orderId } = req.params;
-    const { orderStatus, paymentStatus } = req.body;
-
-    const validOrderStatuses = ["pending", "confirmed", "processing", "completed", "cancelled"];
-    const validPaymentStatuses = ["pending", "paid", "failed", "refunded"];
-
+    const orderStatus = normalizeAdminOrderStatus(req.body.orderStatus);
+    const { paymentStatus } = req.body;
     const updateData = {};
 
     if (orderStatus && validOrderStatuses.includes(orderStatus)) {
@@ -1347,6 +1399,10 @@ export const updateSupersalerOrderStatus = async (req, res) => {
 
     if (paymentStatus && validPaymentStatuses.includes(paymentStatus)) {
       updateData.paymentStatus = paymentStatus;
+    }
+
+    if (paymentStatus === "paid" && !updateData.orderStatus) {
+      updateData.orderStatus = "delivered";
     }
 
     const updatedOrder = await Order.findByIdAndUpdate(
@@ -1359,9 +1415,17 @@ export const updateSupersalerOrderStatus = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
+    if (updatedOrder.paymentStatus === "paid") {
+      await deductProducerInventoryForPaidOrder(updatedOrder);
+    }
+
+    const syncedOrder = await Order.findById(orderId)
+      .populate("userId", "name email phone role district thana")
+      .populate("items.productId");
+
     return res.status(200).json({
       message: "Order status updated successfully",
-      order: updatedOrder,
+      order: syncedOrder,
     });
   } catch (error) {
     return res.status(500).json({
@@ -1452,23 +1516,8 @@ export const updateWholesalerOrderStatus = async (req, res) => {
     }
 
     const { orderId } = req.params;
-    const { orderStatus, paymentStatus } = req.body;
-
-    const validOrderStatuses = [
-      "pending",
-      "confirmed",
-      "processing",
-      "shipped",
-      "delivered",
-      "cancelled",
-    ];
-
-    const validPaymentStatuses = [
-      "pending",
-      "paid",
-      "failed",
-      "refunded",
-    ];
+    const orderStatus = normalizeAdminOrderStatus(req.body.orderStatus);
+    const { paymentStatus } = req.body;
 
     const updateData = {};
 
@@ -1486,6 +1535,10 @@ export const updateWholesalerOrderStatus = async (req, res) => {
       updateData.paymentStatus = paymentStatus;
     }
 
+    if (paymentStatus === "paid" && !updateData.orderStatus) {
+      updateData.orderStatus = "delivered";
+    }
+
     const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
       { $set: updateData },
@@ -1500,9 +1553,17 @@ export const updateWholesalerOrderStatus = async (req, res) => {
       });
     }
 
+    if (updatedOrder.paymentStatus === "paid") {
+      await deductProducerInventoryForPaidOrder(updatedOrder);
+    }
+
+    const syncedOrder = await Order.findById(orderId)
+      .populate("userId", "name email phone")
+      .populate("items.productId");
+
     return res.status(200).json({
       message: "Wholesaler order updated successfully",
-      order: updatedOrder,
+      order: syncedOrder,
     });
 
   } catch (error) {
@@ -1603,23 +1664,8 @@ export const updateConsumerOrderStatus = async (req, res) => {
     }
 
     const { orderId } = req.params;
-    const { orderStatus, paymentStatus } = req.body;
-
-    const validOrderStatuses = [
-      "pending",
-      "confirmed",
-      "processing",
-      "shipped",
-      "delivered",
-      "cancelled",
-    ];
-
-    const validPaymentStatuses = [
-      "pending",
-      "paid",
-      "failed",
-      "refunded",
-    ];
+    const orderStatus = normalizeAdminOrderStatus(req.body.orderStatus);
+    const { paymentStatus } = req.body;
 
     const updateData = {};
 
@@ -1637,6 +1683,10 @@ export const updateConsumerOrderStatus = async (req, res) => {
       updateData.paymentStatus = paymentStatus;
     }
 
+    if (paymentStatus === "paid" && !updateData.orderStatus) {
+      updateData.orderStatus = "delivered";
+    }
+
     const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
       { $set: updateData },
@@ -1651,9 +1701,17 @@ export const updateConsumerOrderStatus = async (req, res) => {
       });
     }
 
+    if (updatedOrder.paymentStatus === "paid") {
+      await deductProducerInventoryForPaidOrder(updatedOrder);
+    }
+
+    const syncedOrder = await Order.findById(orderId)
+      .populate("userId", "name email phone role")
+      .populate("items.productId");
+
     return res.status(200).json({
       message: "Consumer order updated successfully",
-      order: updatedOrder,
+      order: syncedOrder,
     });
 
   } catch (error) {
@@ -1683,7 +1741,7 @@ export const getSupersalerPurchasedProductsForAdmin = async (req, res) => {
 
     const purchases = await Order.find({
       userId: { $in: supersalerIds },
-      orderStatus: "completed",
+      orderStatus: "delivered",
       paymentStatus: "paid",
     })
       .populate({
@@ -1720,7 +1778,7 @@ export const getWholesalerPurchasedProductsForAdmin = async (req, res) => {
 
     const purchases = await Order.find({
       userId: { $in: wholesalerIds },
-      orderStatus: "completed",
+      orderStatus: "delivered",
       paymentStatus: "paid",
     })
       .populate({
@@ -1757,7 +1815,7 @@ export const getProducerPurchasedProductsForAdmin = async (req, res) => {
 
     const purchases = await Order.find({
       userId: { $in: producerIds },
-      orderStatus: "completed",
+      orderStatus: "delivered",
       paymentStatus: "paid",
     })
       .populate({

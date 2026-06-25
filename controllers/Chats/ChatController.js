@@ -316,7 +316,7 @@ export const getUserChats = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit))
       .populate([
-        { path: "participants", select: "name profileImage role isOnline lastSeen" },
+        { path: "participants", select: "name email phone profileImage image role isOnline lastSeen" },
         { path: "lastMessage", select: "content messageType createdAt" },
         { path: "assignedAdmin", select: "name profileImage role" }
       ]);
@@ -395,14 +395,8 @@ export const getAdminChats = async (req, res) => {
     if (userType) query.userType = userType;
     if (category) query.category = category;
 
-    // Get chats assigned to this admin or unassigned
-    const chats = await Chat.find({
-      $or: [
-        { assignedAdmin: adminId },
-        { assignedAdmin: { $exists: false } }
-      ],
-      ...query,
-    })
+    // Admin should be able to see every user-to-admin conversation.
+    const chats = await Chat.find(query)
       .sort({ priority: -1, lastMessageTime: -1 })
       .skip(skip)
       .limit(parseInt(limit))
@@ -413,13 +407,7 @@ export const getAdminChats = async (req, res) => {
       ]);
 
     // Get total count
-    const totalChats = await Chat.countDocuments({
-      $or: [
-        { assignedAdmin: adminId },
-        { assignedAdmin: { $exists: false } }
-      ],
-      ...query,
-    });
+    const totalChats = await Chat.countDocuments(query);
 
     // Format chat data
     const formattedChats = chats.map(chat => {
