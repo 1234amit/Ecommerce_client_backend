@@ -1,8 +1,0 @@
-Ecommerce_client_backend/controllers/ReviewsController.js
-Ecommerce_client_backend/routes/reviewsRoutes.js
-Ecommerce_client_backend/models/Order.js
-Ecommerce_client_backend/controllers/admin/adminController.js
-Ecommerce_client_backend/controllers/superseller/superSellerController.js
-Ecommerce_client_backend/controllers/superseller/sellPostController.js
-Ecommerce_client_backend/controllers/Chats/ChatController.js
-Ecommerce_client_backend/controllers/producer/producerController.js

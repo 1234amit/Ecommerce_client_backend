@@ -597,7 +597,7 @@ export const getWholesalerOrderProducts = async (req, res) => {
     }
 
     const orders = await BulkOrder.find(filter)
-      .populate("product", "productName image price category")
+      .populate("product", "productName image price category addToSellPost")
       .populate("sellPost", "pricePerUnit remainingQuantity")
       .populate("producer", "name phone")
       .sort({ createdAt: -1 });

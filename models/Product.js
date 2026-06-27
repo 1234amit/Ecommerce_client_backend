@@ -8,6 +8,12 @@ const productSchema = new mongoose.Schema(
       required: true,
     },
 
+    sourceProduct: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      default: null,
+    },
+
     image: {
       type: String,
       required: true,

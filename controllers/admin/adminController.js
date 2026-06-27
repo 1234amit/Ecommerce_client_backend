@@ -5,6 +5,7 @@ import Notification from "../../models/Notification.js";
 import Order from "../../models/Order.js";
 // import Product from "../models/Product.js";
 import SellPost from "../../models/SellPost.js"; // ✅ ADD THIS
+import BulkOrder from "../../models/BulkOrder.js";
 
 const validOrderStatuses = [
   "pending",
@@ -38,6 +39,9 @@ const deductProducerInventoryForPaidOrder = async (order) => {
     return;
   }
 
+  const buyerId = order.userId?._id || order.userId;
+  const buyer = buyerId ? await User.findById(buyerId).select("role") : null;
+
   for (const item of order.items || []) {
     const productId = item.productId?._id || item.productId;
     if (!productId) continue;
@@ -56,6 +60,39 @@ const deductProducerInventoryForPaidOrder = async (order) => {
     }
 
     await product.save();
+
+    if (buyer?.role === "supersaler" && purchasedQuantity > 0) {
+      const existingOwnedProduct = await Product.findOne({
+        producer: buyerId,
+        sourceProduct: product._id,
+      });
+
+      if (existingOwnedProduct) {
+        existingOwnedProduct.quantity = String(
+          toNumber(existingOwnedProduct.quantity) + purchasedQuantity
+        );
+        await existingOwnedProduct.save();
+      } else {
+        await Product.create({
+          producer: buyerId,
+          sourceProduct: product._id,
+          image: product.image,
+          secondaryImages: product.secondaryImages || [],
+          productName: item.productName || product.productName,
+          quantity: String(purchasedQuantity),
+          price: String(item.price || product.price || 0),
+          previousPrice: String(item.price || product.previousPrice || product.price || 0),
+          description: product.description,
+          category: product.category,
+          priceType: product.priceType,
+          addToSellPost: "no",
+          status: "approved",
+          productType: product.productType || "bulk",
+          approvedBy: order.adminActionBy || null,
+          approvedAt: new Date(),
+        });
+      }
+    }
   }
 
   order.inventoryDeductedAt = new Date();
@@ -2717,8 +2754,6 @@ export const getSupersalerOrders = async (req, res) => {
 }
 
 
-// admin get wholesaler order
-import BulkOrder from "../../models/BulkOrder.js";
 
 export const adminGetWholesalerOrders = async (req, res) => {
   try {
@@ -2794,14 +2829,8 @@ export const adminApproveOrder = async (req, res) => {
       });
     }
 
-    // must be paid before approval (IMPORTANT BUSINESS RULE)
-    if (order.paymentStatus !== "paid") {
-      return res.status(400).json({
-        message: "Order must be paid before approval",
-      });
-    }
-
     order.orderStatus = "approved";
+    order.paymentStatus = "paid";
     order.approvedBy = req.user.id;
     order.approvedAt = new Date();
 

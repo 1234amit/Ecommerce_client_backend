@@ -182,8 +182,8 @@ export const sendMessage = async (req, res) => {
 
     // Populate sender and receiver details
     await message.populate([
-      { path: "sender", select: "name profileImage role" },
-      { path: "receiver", select: "name profileImage role" },
+      { path: "sender", select: "name email phone profileImage image role" },
+      { path: "receiver", select: "name email phone profileImage image role" },
       { path: "replyTo", select: "content messageType" }
     ]);
 
@@ -242,8 +242,8 @@ export const getChatMessages = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit))
       .populate([
-        { path: "sender", select: "name profileImage role" },
-        { path: "receiver", select: "name profileImage role" },
+        { path: "sender", select: "name email phone profileImage image role" },
+        { path: "receiver", select: "name email phone profileImage image role" },
         { path: "replyTo", select: "content messageType" }
       ]);
 
@@ -401,7 +401,7 @@ export const getAdminChats = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit))
       .populate([
-        { path: "participants", select: "name profileImage role isOnline lastSeen" },
+        { path: "participants", select: "name email phone profileImage image role isOnline lastSeen" },
         { path: "lastMessage", select: "content messageType createdAt" },
         { path: "assignedAdmin", select: "name profileImage role" }
       ]);

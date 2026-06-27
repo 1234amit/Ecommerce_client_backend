@@ -524,56 +524,12 @@ export const getSupersalerOwnProducts = async (req, res) => {
       .sort({ createdAt: -1 });
 
     // ==========================
-    // 2. Get ALL Paid Orders
-    // (IMPORTANT: DO NOT FILTER BY userId)
-    // ==========================
-    const paidOrders = await Order.find({
-      paymentStatus: "paid",
-      isActive: true,
-    }).populate("items.productId");
-
-    console.log(paidOrders)
-
-    // ==========================
-    // 3. Filter only this supersaler's products
-    // ==========================
-    const supersalerProductIds = new Set(
-      ownProducts.map((p) => p._id.toString())
-    );
-
-    const paidProducts = [];
-
-    paidOrders.forEach((order) => {
-      order.items.forEach((item) => {
-        const product = item.productId;
-
-        if (
-          product &&
-          supersalerProductIds.has(product._id.toString())
-        ) {
-          paidProducts.push(product);
-        }
-      });
-    });
-
-    // ==========================
-    // 4. Merge + Remove Duplicates
-    // ==========================
-    const allProductsMap = new Map();
-
-    [...ownProducts, ...paidProducts].forEach((product) => {
-      allProductsMap.set(product._id.toString(), product);
-    });
-
-    const allProducts = Array.from(allProductsMap.values());
-
-    // ==========================
     // RESPONSE
     // ==========================
     return res.status(200).json({
       message: "Supersaler products fetched successfully",
-      totalProducts: allProducts.length,
-      products: allProducts,
+      totalProducts: ownProducts.length,
+      products: ownProducts,
     });
   } catch (error) {
     console.error("getSupersalerOwnProducts error:", error);
@@ -1128,4 +1084,3 @@ export const deleteSupersalerOwnProduct = async (req, res) => {
     });
   }
 };
-
