@@ -70,6 +70,50 @@ const bulkOrderSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    adminActionStatus: {
+      type: String,
+      enum: ["pending", "confirmed", "rejected"],
+      default: "pending",
+    },
+
+    adminActionBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    adminActionAt: {
+      type: Date,
+      default: null,
+    },
+
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
+
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    rejectedAt: {
+      type: Date,
+      default: null,
+    },
+
+    inventoryDeductedAt: {
+      type: Date,
+      default: null,
+    },
+
     notes: String,
   },
   {

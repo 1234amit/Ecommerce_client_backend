@@ -334,12 +334,15 @@ router.get(
 router.put(
   "/wholesaler/orders/approve/:orderId",
   verifyToken,
+  verifyAdmin,
   adminApproveOrder
 );
 
 router.put(
   "/wholesaler/orders/reject/:orderId",
-  verifyToken, adminRejectOrder
+  verifyToken,
+  verifyAdmin,
+  adminRejectOrder
 )
 
 export default router;

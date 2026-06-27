@@ -3,6 +3,11 @@ import User from "../../models/User.js";
 import Product from "../../models/Product.js";
 import SellPost from "../../models/SellPost.js";
 
+const parseQuantityNumber = (value) => {
+  const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 // Get Wholesaler Profile
 export const getWholesalerProfile = async (req, res) => {
   try {
@@ -141,14 +146,17 @@ export const getApprovedProductsForWholesaler = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized access" });
     }
 
-    const products = await Product.find({ status: "approved" })
+    const products = await Product.find({
+      status: "approved",
+      addToSellPost: "yes",
+    })
       .populate("producer", "name email phone")
       .populate("category", "name")
       .sort({ createdAt: -1 });
 
     res.json({
       message: "Approved products fetched successfully",
-      products,
+      products: products.filter((product) => parseQuantityNumber(product.quantity) > 0),
     });
   } catch (error) {
     console.error("Error fetching approved products:", error);
@@ -455,6 +463,43 @@ export const getBulkPostDetailsForWholesaler = async (req, res) => {
 import BulkOrder from "../../models/BulkOrder.js";
 // import SellPost from "../../models/SellPost.js";
 
+const normalizeApprovedBulkOrder = (order = {}) => {
+  const plain = typeof order.toObject === "function" ? order.toObject() : { ...order };
+  const orderStatus = String(plain.orderStatus || "").toLowerCase();
+
+  if (["approved", "completed"].includes(orderStatus)) {
+    plain.paymentStatus = "paid";
+    plain.paymentStatusDisplay = "Paid";
+    plain.adminActionStatus = plain.adminActionStatus || "confirmed";
+  }
+
+  return plain;
+};
+
+const syncApprovedBulkOrdersAsPaid = async (orders = []) => {
+  const idsToRepair = orders
+    .filter((order) => {
+      const orderStatus = String(order.orderStatus || "").toLowerCase();
+      return ["approved", "completed"].includes(orderStatus) && order.paymentStatus !== "paid";
+    })
+    .map((order) => order._id)
+    .filter(Boolean);
+
+  if (idsToRepair.length) {
+    await BulkOrder.updateMany(
+      { _id: { $in: idsToRepair } },
+      {
+        $set: {
+          paymentStatus: "paid",
+          adminActionStatus: "confirmed",
+        },
+      }
+    );
+  }
+
+  return orders.map(normalizeApprovedBulkOrder);
+};
+
 export const createBulkOrder = async (req, res) => {
   try {
     if (req.user.role !== "wholesaler") {
@@ -560,11 +605,12 @@ export const getWholesalerOwnOrders = async (req, res) => {
       .populate("sellPost", "title pricePerUnit remainingQuantity")
       .populate("producer", "name phone email")
       .sort({ createdAt: -1 });
+    const normalizedOrders = await syncApprovedBulkOrdersAsPaid(orders);
 
     res.status(200).json({
       message: "Wholesaler orders fetched successfully",
-      total: orders.length,
-      orders,
+      total: normalizedOrders.length,
+      orders: normalizedOrders,
     });
   } catch (error) {
     console.error(error);
@@ -587,36 +633,30 @@ export const getWholesalerOrderProducts = async (req, res) => {
     }
 
     const { status } = req.query;
-
     const filter = {
-      wholesaler: req.user.id,
+      producer: req.user.id,
     };
 
     if (status) {
-      filter.orderStatus = status;
+      filter.status = status;
     }
 
-    const orders = await BulkOrder.find(filter)
-      .populate("product", "productName image price category addToSellPost")
-      .populate("sellPost", "pricePerUnit remainingQuantity")
-      .populate("producer", "name phone")
+    const ownedProducts = await Product.find(filter)
+      .populate("category", "name")
+      .populate("sourceProduct", "productName image price category producer")
       .sort({ createdAt: -1 });
 
-    // 🔥 Convert orders → product view
-    const products = orders.map((order) => ({
-      orderId: order.orderId,
-      orderStatus: order.orderStatus,
-      quantity: order.quantity,
-      unitPrice: order.unitPrice,
-      totalAmount: order.totalAmount,
-
-      product: order.product,
-
-      producer: order.producer,
-
-      sellPost: order.sellPost,
-
-      createdAt: order.createdAt,
+    const products = ownedProducts.map((product) => ({
+      orderId: product._id,
+      orderStatus: product.status,
+      quantity: product.quantity,
+      unitPrice: product.price,
+      totalAmount: Number(product.price || 0) * Number(product.quantity || 0),
+      product,
+      producer: product.sourceProduct?.producer || product.producer,
+      sellPost: null,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
     }));
 
     res.status(200).json({
@@ -644,18 +684,18 @@ export const markWholesalerOrderProductSoldOffline = async (req, res) => {
 
     const { orderId } = req.params;
 
-    const order = await BulkOrder.findOne({
-      orderId,
-      wholesaler: req.user.id,
+    const product = await Product.findOne({
+      _id: orderId,
+      producer: req.user.id,
     });
 
-    if (!order) {
+    if (!product) {
       return res.status(404).json({
-        message: "Product order not found",
+        message: "Owned product not found",
       });
     }
 
-    await BulkOrder.deleteOne({ _id: order._id });
+    await Product.deleteOne({ _id: product._id });
 
     return res.status(200).json({
       message: "Product marked as sold offline and removed permanently",
@@ -711,6 +751,12 @@ export const payBulkOrderCOD = async (req, res) => {
     if (order.paymentMethod !== "cash_on_delivery") {
       return res.status(400).json({
         message: "This order is not COD payment method",
+      });
+    }
+
+    if (order.orderStatus !== "approved") {
+      return res.status(400).json({
+        message: "Admin approval is required before payment can be completed",
       });
     }
 

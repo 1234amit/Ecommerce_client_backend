@@ -244,10 +244,13 @@ export const createSellPost = async (req, res) => {
       return res.status(400).json({ message: "Product is not approved" });
     }
 
-    // Producer must match supersaler district/thana
+    const isOwnProduct =
+      String(product.producer?._id || product.producer) === String(supersalerId);
+
     if (
-      product.producer.district !== req.user.district ||
-      product.producer.thana !== req.user.thana
+      !isOwnProduct &&
+      (product.producer.district !== req.user.district ||
+        product.producer.thana !== req.user.thana)
     ) {
       return res.status(403).json({
         message: "You can only sell products from your district and thana",
@@ -257,14 +260,16 @@ export const createSellPost = async (req, res) => {
     // ===============================
     // 2) Check Supersaler Bought This Product
     // ===============================
-    const boughtOrders = await Order.find({
-      userId: supersalerId,
-      "items.productId": product._id,
-      paymentStatus: "paid",
-      orderStatus: { $ne: "cancelled" },
-    });
+    const boughtOrders = isOwnProduct
+      ? []
+      : await Order.find({
+          userId: supersalerId,
+          "items.productId": product._id,
+          paymentStatus: "paid",
+          orderStatus: { $ne: "cancelled" },
+        });
 
-    if (!boughtOrders || boughtOrders.length === 0) {
+    if (!isOwnProduct && (!boughtOrders || boughtOrders.length === 0)) {
       return res.status(403).json({
         message: "You can only create sell post for products you purchased",
       });
@@ -273,15 +278,17 @@ export const createSellPost = async (req, res) => {
     // ===============================
     // 3) Calculate total bought quantity
     // ===============================
-    let totalBoughtQty = 0;
+    let totalBoughtQty = isOwnProduct ? Number(product.quantity || 0) : 0;
 
-    boughtOrders.forEach((order) => {
-      order.items.forEach((item) => {
-        if (item.productId.toString() === product._id.toString()) {
-          totalBoughtQty += Number(item.quantity || 0);
-        }
+    if (!isOwnProduct) {
+      boughtOrders.forEach((order) => {
+        order.items.forEach((item) => {
+          if (item.productId.toString() === product._id.toString()) {
+            totalBoughtQty += Number(item.quantity || 0);
+          }
+        });
       });
-    });
+    }
 
     // ===============================
     // 4) Calculate already posted quantity
@@ -316,7 +323,6 @@ export const createSellPost = async (req, res) => {
       seller: supersalerId,
       product: product._id,
       isActive: true,
-      sellType: sellType, // 🔥 retail/bulk separate
     });
 
     let totalPostedQty = 0;
