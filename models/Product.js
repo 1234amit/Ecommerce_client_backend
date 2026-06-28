@@ -8,6 +8,12 @@ const productSchema = new mongoose.Schema(
       required: true,
     },
 
+    sourceProduct: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      default: null,
+    },
+
     image: {
       type: String,
       required: true,
@@ -27,6 +33,16 @@ const productSchema = new mongoose.Schema(
     quantity: {
       type: String,
       required: true,
+    },
+
+    soldQuantity: {
+      type: Number,
+      default: 0,
+    },
+
+    soldAt: {
+      type: Date,
+      default: null,
     },
 
     price: {

@@ -5,7 +5,364 @@ import Notification from "../../models/Notification.js";
 import Order from "../../models/Order.js";
 // import Product from "../models/Product.js";
 import SellPost from "../../models/SellPost.js"; // ✅ ADD THIS
+import BulkOrder from "../../models/BulkOrder.js";
 
+const validOrderStatuses = [
+  "pending",
+  "confirmed",
+  "processing",
+  "shipped",
+  "delivered",
+  "cancelled",
+];
+
+const validPaymentStatuses = [
+  "pending",
+  "paid",
+  "failed",
+  "refunded",
+];
+
+const normalizeAdminOrderStatus = (status) => {
+  if (!status) return undefined;
+  if (status === "completed" || status === "approved") return "delivered";
+  return status;
+};
+
+const toNumber = (value) => {
+  const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const isPaidLikeStatus = (value) => {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return ["paid", "approved", "confirmed", "delivered", "completed"].includes(normalized);
+};
+
+const isAdminCompletedOrderStatus = (value) => {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return ["confirmed", "delivered", "completed"].includes(normalized);
+};
+
+const createOwnedProductForBuyer = async ({
+  buyerId,
+  sourceProductId,
+  purchasedItem,
+  approvalInfo = {},
+}) => {
+  if (!buyerId || !sourceProductId || !purchasedItem) return null;
+
+  const buyer = buyerId ? await User.findById(buyerId).select("role") : null;
+  if (!buyer || !["supersaler", "wholesaler"].includes(buyer.role)) {
+    return null;
+  }
+
+  const sourceProduct = await Product.findById(sourceProductId);
+  if (!sourceProduct) return null;
+
+  const purchasedQty = toNumber(purchasedItem.quantity);
+  if (purchasedQty <= 0) return null;
+
+  const existingOwnedProduct = await Product.findOne({
+    producer: buyerId,
+    sourceProduct: sourceProductId,
+  });
+
+  if (existingOwnedProduct) {
+    existingOwnedProduct.quantity = String(
+      toNumber(existingOwnedProduct.quantity) + purchasedQty
+    );
+    existingOwnedProduct.price = String(
+      toNumber(purchasedItem.price || existingOwnedProduct.price || sourceProduct.price || 0)
+    );
+    existingOwnedProduct.previousPrice = String(
+      toNumber(
+        purchasedItem.price ||
+          existingOwnedProduct.previousPrice ||
+          sourceProduct.previousPrice ||
+          sourceProduct.price ||
+          0
+      )
+    );
+    existingOwnedProduct.status = "approved";
+    existingOwnedProduct.addToSellPost = "no";
+    existingOwnedProduct.isSelling = false;
+    existingOwnedProduct.approvedBy =
+      approvalInfo.approvedBy || existingOwnedProduct.approvedBy || null;
+    existingOwnedProduct.approvedAt =
+      existingOwnedProduct.approvedAt || approvalInfo.approvedAt || new Date();
+    await existingOwnedProduct.save();
+    return existingOwnedProduct;
+  }
+
+  return Product.create({
+    producer: buyerId,
+    sourceProduct: sourceProductId,
+    image: sourceProduct.image,
+    secondaryImages: sourceProduct.secondaryImages || [],
+    productName: purchasedItem.productName || sourceProduct.productName,
+    quantity: String(purchasedQty),
+    price: String(toNumber(purchasedItem.price || sourceProduct.price || 0)),
+    previousPrice: String(
+      toNumber(
+        purchasedItem.price ||
+          sourceProduct.previousPrice ||
+          sourceProduct.price ||
+          0
+      )
+    ),
+    description: sourceProduct.description,
+    category: sourceProduct.category,
+    priceType: sourceProduct.priceType,
+    addToSellPost: "no",
+    status: "approved",
+    productType: sourceProduct.productType || "bulk",
+    approvedBy: approvalInfo.approvedBy || null,
+    approvedAt: approvalInfo.approvedAt || new Date(),
+    isSelling: false,
+  });
+};
+
+const normalizeApprovedOrderForResponse = (order = {}) => {
+  const normalized = { ...order };
+
+  if (
+    isPaidLikeStatus(normalized.paymentStatus) ||
+    isPaidLikeStatus(normalized.orderStatus) ||
+    isPaidLikeStatus(normalized.adminActionStatus)
+  ) {
+    normalized.orderStatus = "delivered";
+    normalized.statusDisplay = "Delivered";
+    normalized.paymentStatus = "paid";
+    normalized.paymentStatusDisplay = "Paid";
+    normalized.adminActionStatus = normalized.adminActionStatus || "confirmed";
+  }
+
+  return normalized;
+};
+
+const syncApprovedOrdersAsPaidForResponse = async (orders = []) => {
+  const idsToRepair = orders
+    .filter((order) => {
+      return (
+        order.paymentStatus !== "paid" &&
+        (isPaidLikeStatus(order.orderStatus) ||
+          isPaidLikeStatus(order.adminActionStatus))
+      );
+    })
+    .map((order) => order._id)
+    .filter(Boolean);
+
+  if (idsToRepair.length) {
+    await Order.updateMany(
+      { _id: { $in: idsToRepair } },
+      {
+        $set: {
+          orderStatus: "delivered",
+          paymentStatus: "paid",
+          adminActionStatus: "confirmed",
+        },
+      }
+    );
+  }
+
+  return orders.map(normalizeApprovedOrderForResponse);
+};
+
+const normalizeApprovedBulkOrderForResponse = (order = {}) => {
+  const normalized = { ...order };
+  const orderStatus = String(normalized.orderStatus || "").toLowerCase();
+
+  if (["approved", "completed"].includes(orderStatus)) {
+    normalized.paymentStatus = "paid";
+    normalized.paymentStatusDisplay = "Paid";
+    normalized.adminActionStatus = normalized.adminActionStatus || "confirmed";
+  }
+
+  return normalized;
+};
+
+const syncApprovedBulkOrdersAsPaidForResponse = async (orders = []) => {
+  const idsToRepair = orders
+    .filter((order) => {
+      const orderStatus = String(order.orderStatus || "").toLowerCase();
+      return ["approved", "completed"].includes(orderStatus) && order.paymentStatus !== "paid";
+    })
+    .map((order) => order._id)
+    .filter(Boolean);
+
+  if (idsToRepair.length) {
+    await BulkOrder.updateMany(
+      { _id: { $in: idsToRepair } },
+      {
+        $set: {
+          paymentStatus: "paid",
+          adminActionStatus: "confirmed",
+        },
+      }
+    );
+  }
+
+  return orders.map(normalizeApprovedBulkOrderForResponse);
+};
+
+const assertOrderInventoryAvailable = async (order) => {
+  if (!order || order.inventoryDeductedAt) {
+    return;
+  }
+
+  for (const item of order?.items || []) {
+    const productId = item.productId?._id || item.productId;
+    if (!productId) continue;
+
+    const product = await Product.findById(productId).select("productName quantity");
+    if (!product) {
+      throw new Error(`Product not found for order item: ${item.productName || productId}`);
+    }
+
+    const availableQuantity = toNumber(product.quantity);
+    const requestedQuantity = toNumber(item.quantity);
+
+    if (requestedQuantity <= 0) {
+      throw new Error(`Invalid quantity for ${item.productName || product.productName}`);
+    }
+
+    if (availableQuantity < requestedQuantity) {
+      throw new Error(
+        `${product.productName} has only ${availableQuantity} available, requested ${requestedQuantity}`
+      );
+    }
+  }
+};
+
+const deductProducerInventoryForPaidOrder = async (order) => {
+  if (!order || order.inventoryDeductedAt) {
+    return;
+  }
+
+  const isPaidOrder =
+    isPaidLikeStatus(order.paymentStatus) ||
+    isPaidLikeStatus(order.orderStatus) ||
+    isPaidLikeStatus(order.adminActionStatus);
+
+  if (!isPaidOrder) {
+    return;
+  }
+
+  const buyerId = order.userId?._id || order.userId;
+  const buyer = buyerId ? await User.findById(buyerId).select("role") : null;
+
+  for (const item of order.items || []) {
+    const productId = item.productId?._id || item.productId;
+    if (!productId) continue;
+
+    const product = await Product.findById(productId);
+    if (!product) continue;
+
+    const currentQuantity = toNumber(product.quantity);
+    const purchasedQuantity = toNumber(item.quantity);
+
+    if (purchasedQuantity <= 0) continue;
+    if (currentQuantity < purchasedQuantity) {
+      throw new Error(
+        `${product.productName} has only ${currentQuantity} available, requested ${purchasedQuantity}`
+      );
+    }
+
+    const nextQuantity = Math.max(0, currentQuantity - purchasedQuantity);
+
+    product.quantity = String(nextQuantity);
+    product.soldQuantity = toNumber(product.soldQuantity) + purchasedQuantity;
+    product.soldAt = new Date();
+
+    if (nextQuantity === 0) {
+      product.addToSellPost = "no";
+      product.isSelling = false;
+    }
+
+    await product.save();
+
+    if (["supersaler", "wholesaler"].includes(buyer?.role) && purchasedQuantity > 0) {
+      await createOwnedProductForBuyer({
+        buyerId,
+        sourceProductId: product._id,
+        purchasedItem: {
+          quantity: purchasedQuantity,
+          price: item.price || product.price || 0,
+          productName: item.productName || product.productName,
+        },
+        approvalInfo: {
+          approvedBy: order.adminActionBy || null,
+          approvedAt: order.adminActionAt || order.approvedAt || new Date(),
+        },
+      });
+    }
+  }
+
+  order.inventoryDeductedAt = new Date();
+  await order.save();
+};
+
+const transferInventoryForBulkOrderApproval = async (bulkOrder) => {
+  if (!bulkOrder || !bulkOrder.product || !bulkOrder.wholesaler) {
+    return;
+  }
+
+  if (bulkOrder.inventoryDeductedAt) {
+    return;
+  }
+
+  if (bulkOrder.orderStatus !== "approved" || bulkOrder.paymentStatus !== "paid") {
+    return;
+  }
+
+  const productId = bulkOrder.product?._id || bulkOrder.product;
+  if (!productId) return;
+
+  const product = await Product.findById(productId);
+  if (!product) return;
+
+  const purchasedQuantity = toNumber(bulkOrder.quantity);
+  if (purchasedQuantity <= 0) return;
+
+  const currentQuantity = toNumber(product.quantity);
+  if (currentQuantity < purchasedQuantity) {
+    throw new Error(
+      `${product.productName} has only ${currentQuantity} available, requested ${purchasedQuantity}`
+    );
+  }
+
+  const nextQuantity = Math.max(0, currentQuantity - purchasedQuantity);
+
+  product.quantity = String(nextQuantity);
+  product.soldQuantity = toNumber(product.soldQuantity) + purchasedQuantity;
+  product.soldAt = new Date();
+
+  if (nextQuantity === 0) {
+    product.addToSellPost = "no";
+    product.isSelling = false;
+  }
+
+  await product.save();
+
+  const buyerId = bulkOrder.wholesaler?._id || bulkOrder.wholesaler;
+  await createOwnedProductForBuyer({
+    buyerId,
+    sourceProductId: product._id,
+    purchasedItem: {
+      quantity: purchasedQuantity,
+      price: bulkOrder.unitPrice || bulkOrder.totalAmount || 0,
+      productName: product.productName,
+    },
+    approvalInfo: {
+      approvedBy: bulkOrder.approvedBy || bulkOrder.adminActionBy || null,
+      approvedAt: bulkOrder.approvedAt || bulkOrder.adminActionAt || new Date(),
+    },
+  });
+
+  bulkOrder.inventoryDeductedAt = new Date();
+  await bulkOrder.save();
+};
 
 // Get Admin Profile
 export const getAdminProfile = async (req, res) => {
@@ -1303,14 +1660,15 @@ export const getAllSupersalerOrdersForAdmin = async (req, res) => {
       })
       .sort({ createdAt: -1 })
       .lean();
+    const normalizedOrders = await syncApprovedOrdersAsPaidForResponse(supersalerOrders);
 
     // ==========================
     // RESPONSE
     // ==========================
     return res.status(200).json({
       message: "Supersaler orders fetched successfully",
-      totalOrders: supersalerOrders.length,
-      orders: supersalerOrders,
+      totalOrders: normalizedOrders.length,
+      orders: normalizedOrders,
     });
 
   } catch (error) {
@@ -1334,11 +1692,8 @@ export const updateSupersalerOrderStatus = async (req, res) => {
     }
 
     const { orderId } = req.params;
-    const { orderStatus, paymentStatus } = req.body;
-
-    const validOrderStatuses = ["pending", "confirmed", "processing", "completed", "cancelled"];
-    const validPaymentStatuses = ["pending", "paid", "failed", "refunded"];
-
+    const orderStatus = normalizeAdminOrderStatus(req.body.orderStatus);
+    const { paymentStatus } = req.body;
     const updateData = {};
 
     if (orderStatus && validOrderStatuses.includes(orderStatus)) {
@@ -1347,6 +1702,28 @@ export const updateSupersalerOrderStatus = async (req, res) => {
 
     if (paymentStatus && validPaymentStatuses.includes(paymentStatus)) {
       updateData.paymentStatus = paymentStatus;
+    }
+
+    if (paymentStatus === "paid" && !updateData.orderStatus) {
+      updateData.orderStatus = "delivered";
+    }
+
+    if (isAdminCompletedOrderStatus(orderStatus) && !updateData.paymentStatus) {
+      updateData.paymentStatus = "paid";
+    }
+
+    if (paymentStatus === "paid" || isAdminCompletedOrderStatus(orderStatus)) {
+      updateData.adminActionStatus = "confirmed";
+      updateData.adminActionBy = req.user.id;
+      updateData.adminActionAt = new Date();
+    }
+
+    if (updateData.paymentStatus === "paid" || isAdminCompletedOrderStatus(updateData.orderStatus)) {
+      const orderBeforeUpdate = await Order.findById(orderId);
+      if (!orderBeforeUpdate) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      await assertOrderInventoryAvailable(orderBeforeUpdate);
     }
 
     const updatedOrder = await Order.findByIdAndUpdate(
@@ -1359,11 +1736,25 @@ export const updateSupersalerOrderStatus = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
+    if (updatedOrder.paymentStatus === "paid") {
+      await deductProducerInventoryForPaidOrder(updatedOrder);
+    }
+
+    const syncedOrder = await Order.findById(orderId)
+      .populate("userId", "name email phone role district thana")
+      .populate("items.productId");
+
     return res.status(200).json({
       message: "Order status updated successfully",
-      order: updatedOrder,
+      order: syncedOrder,
     });
   } catch (error) {
+    if (String(error.message || "").includes("requested")) {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
+
     return res.status(500).json({
       message: "Server error",
       error: error.message,
@@ -1422,11 +1813,12 @@ export const getAllWholesalerOrdersForAdmin = async (req, res) => {
       })
       .sort({ createdAt: -1 })
       .lean();
+    const normalizedOrders = await syncApprovedOrdersAsPaidForResponse(wholesalerOrders);
 
     return res.status(200).json({
       message: "Wholesaler orders fetched successfully",
-      totalOrders: wholesalerOrders.length,
-      orders: wholesalerOrders,
+      totalOrders: normalizedOrders.length,
+      orders: normalizedOrders,
     });
 
   } catch (error) {
@@ -1452,23 +1844,8 @@ export const updateWholesalerOrderStatus = async (req, res) => {
     }
 
     const { orderId } = req.params;
-    const { orderStatus, paymentStatus } = req.body;
-
-    const validOrderStatuses = [
-      "pending",
-      "confirmed",
-      "processing",
-      "shipped",
-      "delivered",
-      "cancelled",
-    ];
-
-    const validPaymentStatuses = [
-      "pending",
-      "paid",
-      "failed",
-      "refunded",
-    ];
+    const orderStatus = normalizeAdminOrderStatus(req.body.orderStatus);
+    const { paymentStatus } = req.body;
 
     const updateData = {};
 
@@ -1486,6 +1863,28 @@ export const updateWholesalerOrderStatus = async (req, res) => {
       updateData.paymentStatus = paymentStatus;
     }
 
+    if (paymentStatus === "paid" && !updateData.orderStatus) {
+      updateData.orderStatus = "delivered";
+    }
+
+    if (isAdminCompletedOrderStatus(orderStatus) && !updateData.paymentStatus) {
+      updateData.paymentStatus = "paid";
+    }
+
+    if (updateData.paymentStatus === "paid" || isAdminCompletedOrderStatus(updateData.orderStatus)) {
+      updateData.adminActionStatus = "confirmed";
+      updateData.adminActionBy = req.user.id;
+      updateData.adminActionAt = new Date();
+
+      const orderBeforeUpdate = await Order.findById(orderId);
+      if (!orderBeforeUpdate) {
+        return res.status(404).json({
+          message: "Order not found",
+        });
+      }
+      await assertOrderInventoryAvailable(orderBeforeUpdate);
+    }
+
     const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
       { $set: updateData },
@@ -1500,9 +1899,17 @@ export const updateWholesalerOrderStatus = async (req, res) => {
       });
     }
 
+    if (updatedOrder.paymentStatus === "paid") {
+      await deductProducerInventoryForPaidOrder(updatedOrder);
+    }
+
+    const syncedOrder = await Order.findById(orderId)
+      .populate("userId", "name email phone")
+      .populate("items.productId");
+
     return res.status(200).json({
       message: "Wholesaler order updated successfully",
-      order: updatedOrder,
+      order: syncedOrder,
     });
 
   } catch (error) {
@@ -1510,6 +1917,12 @@ export const updateWholesalerOrderStatus = async (req, res) => {
       "updateWholesalerOrderStatus error:",
       error
     );
+
+    if (String(error.message || "").includes("requested")) {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
 
     return res.status(500).json({
       message: "Server error",
@@ -1569,11 +1982,12 @@ export const getAllConsumerOrdersForAdmin = async (req, res) => {
       })
       .sort({ createdAt: -1 })
       .lean();
+    const normalizedOrders = await syncApprovedOrdersAsPaidForResponse(consumerOrders);
 
     return res.status(200).json({
       message: "Consumer orders fetched successfully",
-      totalOrders: consumerOrders.length,
-      orders: consumerOrders,
+      totalOrders: normalizedOrders.length,
+      orders: normalizedOrders,
     });
 
   } catch (error) {
@@ -1603,23 +2017,8 @@ export const updateConsumerOrderStatus = async (req, res) => {
     }
 
     const { orderId } = req.params;
-    const { orderStatus, paymentStatus } = req.body;
-
-    const validOrderStatuses = [
-      "pending",
-      "confirmed",
-      "processing",
-      "shipped",
-      "delivered",
-      "cancelled",
-    ];
-
-    const validPaymentStatuses = [
-      "pending",
-      "paid",
-      "failed",
-      "refunded",
-    ];
+    const orderStatus = normalizeAdminOrderStatus(req.body.orderStatus);
+    const { paymentStatus } = req.body;
 
     const updateData = {};
 
@@ -1637,6 +2036,28 @@ export const updateConsumerOrderStatus = async (req, res) => {
       updateData.paymentStatus = paymentStatus;
     }
 
+    if (paymentStatus === "paid" && !updateData.orderStatus) {
+      updateData.orderStatus = "delivered";
+    }
+
+    if (isAdminCompletedOrderStatus(orderStatus) && !updateData.paymentStatus) {
+      updateData.paymentStatus = "paid";
+    }
+
+    if (updateData.paymentStatus === "paid" || isAdminCompletedOrderStatus(updateData.orderStatus)) {
+      updateData.adminActionStatus = "confirmed";
+      updateData.adminActionBy = req.user.id;
+      updateData.adminActionAt = new Date();
+
+      const orderBeforeUpdate = await Order.findById(orderId);
+      if (!orderBeforeUpdate) {
+        return res.status(404).json({
+          message: "Order not found",
+        });
+      }
+      await assertOrderInventoryAvailable(orderBeforeUpdate);
+    }
+
     const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
       { $set: updateData },
@@ -1651,9 +2072,17 @@ export const updateConsumerOrderStatus = async (req, res) => {
       });
     }
 
+    if (updatedOrder.paymentStatus === "paid") {
+      await deductProducerInventoryForPaidOrder(updatedOrder);
+    }
+
+    const syncedOrder = await Order.findById(orderId)
+      .populate("userId", "name email phone role")
+      .populate("items.productId");
+
     return res.status(200).json({
       message: "Consumer order updated successfully",
-      order: updatedOrder,
+      order: syncedOrder,
     });
 
   } catch (error) {
@@ -1661,6 +2090,12 @@ export const updateConsumerOrderStatus = async (req, res) => {
       "updateConsumerOrderStatus error:",
       error
     );
+
+    if (String(error.message || "").includes("requested")) {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
 
     return res.status(500).json({
       message: "Server error",
@@ -1683,7 +2118,7 @@ export const getSupersalerPurchasedProductsForAdmin = async (req, res) => {
 
     const purchases = await Order.find({
       userId: { $in: supersalerIds },
-      orderStatus: "completed",
+      orderStatus: "delivered",
       paymentStatus: "paid",
     })
       .populate({
@@ -1720,7 +2155,7 @@ export const getWholesalerPurchasedProductsForAdmin = async (req, res) => {
 
     const purchases = await Order.find({
       userId: { $in: wholesalerIds },
-      orderStatus: "completed",
+      orderStatus: "delivered",
       paymentStatus: "paid",
     })
       .populate({
@@ -1757,7 +2192,7 @@ export const getProducerPurchasedProductsForAdmin = async (req, res) => {
 
     const purchases = await Order.find({
       userId: { $in: producerIds },
-      orderStatus: "completed",
+      orderStatus: "delivered",
       paymentStatus: "paid",
     })
       .populate({
@@ -2528,14 +2963,7 @@ export const rejectSupersalerProductByAdmin = async (req, res) => {
 //       return res.status(404).json({ message: "Product not found" });
 //     }
 
-//     // ✅ Check supersaler product
-//     if (product.producer?.role !== "supersaler") {
-//       return res.status(400).json({
-//         message: "This product is not a supersaler product",
-//       });
-//     }
-
-//     // ✅ Update without validation issues
+//     // ✅ Reject product (producer OR supersaler)
 //     const updatedProduct = await Product.findByIdAndUpdate(
 //       productId,
 //       {
@@ -2659,8 +3087,6 @@ export const getSupersalerOrders = async (req, res) => {
 }
 
 
-// admin get wholesaler order
-import BulkOrder from "../../models/BulkOrder.js";
 
 export const adminGetWholesalerOrders = async (req, res) => {
   try {
@@ -2690,12 +3116,14 @@ export const adminGetWholesalerOrders = async (req, res) => {
       .populate("producer", "name phone email")
       .populate("product", "productName image price")
       .populate("sellPost", "pricePerUnit remainingQuantity")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
+    const normalizedOrders = await syncApprovedBulkOrdersAsPaidForResponse(orders);
 
     return res.status(200).json({
       message: "All wholesaler orders fetched successfully",
-      total: orders.length,
-      orders,
+      total: normalizedOrders.length,
+      orders: normalizedOrders,
     });
   } catch (error) {
     console.error("ADMIN ORDER ERROR:", error);
@@ -2729,25 +3157,67 @@ export const adminApproveOrder = async (req, res) => {
       });
     }
 
-    // already approved
     if (order.orderStatus === "approved") {
-      return res.status(400).json({
+      if (order.paymentStatus !== "paid") {
+        order.paymentStatus = "paid";
+      }
+      order.adminActionStatus = "confirmed";
+      order.adminActionBy = order.adminActionBy || req.user.id;
+      order.adminActionAt = order.adminActionAt || new Date();
+      order.approvedBy = order.approvedBy || req.user.id;
+      order.approvedAt = order.approvedAt || new Date();
+      await order.save();
+      await transferInventoryForBulkOrderApproval(order);
+      return res.status(200).json({
         message: "Order already approved",
+        order,
       });
     }
 
-    // must be paid before approval (IMPORTANT BUSINESS RULE)
-    if (order.paymentStatus !== "paid") {
+    const orderedProduct = await Product.findById(order.product).select("productName quantity");
+    if (!orderedProduct) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
+
+    const availableQuantity = toNumber(orderedProduct.quantity);
+    const orderedQuantity = toNumber(order.quantity);
+    if (orderedQuantity <= 0 || availableQuantity < orderedQuantity) {
       return res.status(400).json({
-        message: "Order must be paid before approval",
+        message: `${orderedProduct.productName} has only ${availableQuantity} available, requested ${orderedQuantity}`,
       });
     }
 
     order.orderStatus = "approved";
+    order.paymentStatus = "paid";
+    order.adminActionStatus = "confirmed";
+    order.adminActionBy = req.user.id;
+    order.adminActionAt = new Date();
     order.approvedBy = req.user.id;
     order.approvedAt = new Date();
 
     await order.save();
+
+    if (order.sellPost) {
+      const sellPost = await SellPost.findById(order.sellPost);
+      if (sellPost) {
+        sellPost.soldQuantity = Number(sellPost.soldQuantity || 0) + Number(order.quantity || 0);
+        if (sellPost.soldQuantity > sellPost.quantity) {
+          sellPost.soldQuantity = sellPost.quantity;
+        }
+        sellPost.remainingQuantity = Math.max(
+          0,
+          Number(sellPost.quantity || 0) - Number(sellPost.soldQuantity || 0),
+        );
+        if (sellPost.remainingQuantity === 0) {
+          sellPost.isActive = false;
+        }
+        await sellPost.save();
+      }
+    }
+
+    await transferInventoryForBulkOrderApproval(order);
 
     return res.status(200).json({
       message: "Order approved successfully",
@@ -2755,6 +3225,12 @@ export const adminApproveOrder = async (req, res) => {
     });
   } catch (error) {
     console.error("ADMIN APPROVE ERROR:", error);
+
+    if (String(error.message || "").includes("requested")) {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
 
     return res.status(500).json({
       message: "Server error",
@@ -2784,6 +3260,9 @@ export const adminRejectOrder = async (req, res) => {
     }
 
     order.orderStatus = "rejected";
+    order.adminActionStatus = "rejected";
+    order.adminActionBy = req.user.id;
+    order.adminActionAt = new Date();
     order.rejectedBy = req.user.id;
     order.rejectedAt = new Date();
 

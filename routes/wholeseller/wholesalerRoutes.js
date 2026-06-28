@@ -11,6 +11,7 @@ import {
   getProductDetailsForWholesaler,
   getWholesalerOrderProducts,
   getWholesalerOwnOrders,
+  markWholesalerOrderProductSoldOffline,
   getWholesalerProfile,
   payBulkOrderCOD,
   updateWholesalerProfile,
@@ -112,6 +113,12 @@ router.get(
   "/orders/products",
   verifyTokenwholesaler,
   getWholesalerOrderProducts
+);
+
+router.delete(
+  "/orders/products/:orderId/sold",
+  verifyTokenwholesaler,
+  markWholesalerOrderProductSoldOffline
 );
 
 router.put(

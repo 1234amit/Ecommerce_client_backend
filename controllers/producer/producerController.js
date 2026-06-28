@@ -639,8 +639,8 @@ export const updateProductById = async (req, res) => {
       });
     }
 
-    // ✅ If already approved, then update means admin approval required again
-    if (product.status === "approved") {
+    // Editing approved or rejected products requires admin approval again.
+    if (product.status === "approved" || product.status === "rejected") {
       product.status = "pending";
       product.approvedBy = null;
       product.approvedAt = null;
@@ -959,5 +959,3 @@ export const confirmSellingRequest = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
-

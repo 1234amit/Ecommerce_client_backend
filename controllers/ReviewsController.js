@@ -97,21 +97,13 @@ export const getReviewsByProduct = async (req, res) => {
   try {
     const { productId } = req.params;
 
-    const userRole = req.user.role; // 👈 from verifyToken
-
     if (!mongoose.Types.ObjectId.isValid(productId)) {
       return res.status(400).json({ message: "Invalid productId" });
     }
 
     const pid = new mongoose.Types.ObjectId(productId);
 
-    // 🔥 ROLE BASED FILTER
-    let filter = { productId: pid };
-
-    // ❌ non-consumer cannot see owner reviews
-    if (userRole !== "consumer") {
-      filter.role = { $ne: "owner" };
-    }
+    const filter = { productId: pid };
 
     const [reviews, stats] = await Promise.all([
       Review.find(filter)
@@ -268,5 +260,4 @@ export const getReviewsByUserName = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
 

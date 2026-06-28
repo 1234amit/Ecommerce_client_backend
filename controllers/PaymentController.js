@@ -69,10 +69,22 @@ class PaymentController {
       const payment = await Payment.findOne({ paymentId, isActive: true });
       if (!payment) return res.status(404).json({ success: false, message: 'Payment not found' });
 
+      const order = await Order.findById(payment.orderId);
+      if (
+        status === 'paid' &&
+        order &&
+        order.orderStatus !== 'delivered' &&
+        order.adminActionStatus !== 'confirmed'
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'Admin approval is required before payment can be completed',
+        });
+      }
+
       payment.status = status;
       await payment.save();
 
-      const order = await Order.findById(payment.orderId);
       if (order) {
         if (status === 'paid') order.paymentStatus = 'paid';
         else if (status === 'failed') order.paymentStatus = 'failed';

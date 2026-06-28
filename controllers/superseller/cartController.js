@@ -3,6 +3,10 @@ import Wallet from "../../models/Wallet.js";
 import Transaction from "../../models/Transaction.js";
 import SupersalerBuyProductCart from "../../models/supersalerBuyProductCart.js";
 
+const parseQuantityNumber = (value) => {
+  const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 // =============================
 // ✅ Wallet helper
@@ -57,6 +61,10 @@ export const addToCart = async (req, res) => {
       return res.status(400).json({ message: "Product not approved" });
     }
 
+    if (String(product.addToSellPost || "").toLowerCase() !== "yes") {
+      return res.status(400).json({ message: "Product is not available for selling" });
+    }
+
     // =============================
     // District & Thana check
     // =============================
@@ -72,10 +80,11 @@ export const addToCart = async (req, res) => {
     // =============================
     // Stock check
     // =============================
-    if (product.quantity < qty) {
+    const availableQuantity = parseQuantityNumber(product.quantity);
+    if (availableQuantity < qty) {
       return res.status(400).json({
         message: "Not enough stock",
-        available: product.quantity,
+        available: availableQuantity,
       });
     }
 
@@ -105,7 +114,14 @@ export const addToCart = async (req, res) => {
       );
 
       if (existingItem) {
-        existingItem.quantity += qty;
+        const nextQuantity = Number(existingItem.quantity || 0) + qty;
+        if (nextQuantity > availableQuantity) {
+          return res.status(400).json({
+            message: "Not enough stock",
+            available: availableQuantity,
+          });
+        }
+        existingItem.quantity = nextQuantity;
       } else {
         cart.items.push({
           product: productId,

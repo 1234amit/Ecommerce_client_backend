@@ -9,6 +9,70 @@ import Cart from "../../models/Cart.js";
 import SupersalerBuyProductCart from "../../models/supersalerBuyProductCart.js";
 import mongoose from "mongoose";
 
+const parseQuantityNumber = (value) => {
+  const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const isAdminApprovedOrder = (order = {}) => {
+  const orderStatus = String(order.orderStatus || "").toLowerCase();
+  const paymentStatus = String(order.paymentStatus || "").toLowerCase();
+  const adminActionStatus = String(order.adminActionStatus || "").toLowerCase();
+
+  return (
+    paymentStatus === "paid" ||
+    orderStatus === "confirmed" ||
+    orderStatus === "delivered" ||
+    orderStatus === "completed" ||
+    adminActionStatus === "confirmed"
+  );
+};
+
+const normalizeOrderForResponse = (order = {}) => {
+  const plain = typeof order.toObject === "function"
+    ? order.toObject({ virtuals: true })
+    : { ...order };
+
+  if (isAdminApprovedOrder(plain)) {
+    plain.orderStatus = "delivered";
+    plain.paymentStatus = "paid";
+    plain.paymentStatusDisplay = "Paid";
+    plain.statusDisplay = "Delivered";
+    plain.adminActionStatus = plain.adminActionStatus || "confirmed";
+  }
+
+  return plain;
+};
+
+const syncApprovedOrdersAsPaid = async (orders = []) => {
+  const idsToRepair = orders
+    .filter((order) => isAdminApprovedOrder(order) && order.paymentStatus !== "paid")
+    .map((order) => order._id)
+    .filter(Boolean);
+
+  if (idsToRepair.length) {
+    await Order.updateMany(
+      { _id: { $in: idsToRepair } },
+      {
+        $set: {
+          orderStatus: "delivered",
+          paymentStatus: "paid",
+          adminActionStatus: "confirmed",
+        },
+      }
+    );
+
+    orders.forEach((order) => {
+      if (idsToRepair.some((id) => String(id) === String(order._id))) {
+        order.orderStatus = "delivered";
+        order.paymentStatus = "paid";
+        order.adminActionStatus = "confirmed";
+      }
+    });
+  }
+
+  return orders.map(normalizeOrderForResponse);
+};
 
 // Get Supersaler Profile
 export const getSupersalerProfile = async (req, res) => {
@@ -147,7 +211,12 @@ export const getApprovedProductsForSuperseller = async (req, res) => {
     const supersalerThana = req.user.thana;
 
     const products = await Product.aggregate([
-      { $match: { status: "approved" } },
+      {
+        $match: {
+          status: "approved",
+          addToSellPost: "yes",
+        },
+      },
 
       {
         $lookup: {
@@ -161,6 +230,7 @@ export const getApprovedProductsForSuperseller = async (req, res) => {
 
       {
         $match: {
+          "producer.role": "producer",
           "producer.district": supersalerDistrict,
           "producer.thana": supersalerThana,
         },
@@ -181,7 +251,7 @@ export const getApprovedProductsForSuperseller = async (req, res) => {
 
     res.json({
       message: "Approved products fetched successfully",
-      products,
+      products: products.filter((product) => parseQuantityNumber(product.quantity) > 0),
     });
   } catch (error) {
     console.error("Error fetching approved products:", error);
@@ -372,10 +442,11 @@ export const getSupersalerBuyOrders = async (req, res) => {
     })
       .populate("items.productId") // populate product details
       .sort({ createdAt: -1 });
+    const normalizedOrders = await syncApprovedOrdersAsPaid(orders);
 
     return res.status(200).json({
       message: "Supersaler buy orders fetched successfully",
-      orders,
+      orders: normalizedOrders,
     });
   } catch (error) {
     return res.status(500).json({
@@ -442,10 +513,11 @@ export const getSupersalerOrders = async (req, res) => {
       .populate("items.productId")
       .populate("adminActionBy", "name email")
       .sort({ createdAt: -1 });
+    const normalizedOrders = await syncApprovedOrdersAsPaid(orders);
 
     return res.status(200).json({
       message: "All purchase orders fetched",
-      orders,
+      orders: normalizedOrders,
     });
   } catch (error) {
     return res.status(500).json({
@@ -524,56 +596,12 @@ export const getSupersalerOwnProducts = async (req, res) => {
       .sort({ createdAt: -1 });
 
     // ==========================
-    // 2. Get ALL Paid Orders
-    // (IMPORTANT: DO NOT FILTER BY userId)
-    // ==========================
-    const paidOrders = await Order.find({
-      paymentStatus: "paid",
-      isActive: true,
-    }).populate("items.productId");
-
-    console.log(paidOrders)
-
-    // ==========================
-    // 3. Filter only this supersaler's products
-    // ==========================
-    const supersalerProductIds = new Set(
-      ownProducts.map((p) => p._id.toString())
-    );
-
-    const paidProducts = [];
-
-    paidOrders.forEach((order) => {
-      order.items.forEach((item) => {
-        const product = item.productId;
-
-        if (
-          product &&
-          supersalerProductIds.has(product._id.toString())
-        ) {
-          paidProducts.push(product);
-        }
-      });
-    });
-
-    // ==========================
-    // 4. Merge + Remove Duplicates
-    // ==========================
-    const allProductsMap = new Map();
-
-    [...ownProducts, ...paidProducts].forEach((product) => {
-      allProductsMap.set(product._id.toString(), product);
-    });
-
-    const allProducts = Array.from(allProductsMap.values());
-
-    // ==========================
     // RESPONSE
     // ==========================
     return res.status(200).json({
       message: "Supersaler products fetched successfully",
-      totalProducts: allProducts.length,
-      products: allProducts,
+      totalProducts: ownProducts.length,
+      products: ownProducts,
     });
   } catch (error) {
     console.error("getSupersalerOwnProducts error:", error);
@@ -650,8 +678,13 @@ export const getSupersalerPurchasedProducts = async (req, res) => {
 
     // 1. Get paid orders (ONLY order is source of truth)
     const orders = await Order.find({
-      paymentStatus: "paid",
+      userId: supersalerId,
       isActive: true,
+      $or: [
+        { paymentStatus: "paid" },
+        { orderStatus: { $in: ["confirmed", "delivered", "completed"] } },
+        { adminActionStatus: "confirmed" },
+      ],
     })
       .populate({
         path: "items.productId",
@@ -660,12 +693,14 @@ export const getSupersalerPurchasedProducts = async (req, res) => {
           { path: "approvedBy", select: "name email" },
         ],
       })
-      .lean();
+      .lean({ virtuals: true });
+
+    const normalizedOrders = await syncApprovedOrdersAsPaid(orders);
 
     // 2. Unique product map (IMPORTANT)
     const purchasedMap = new Map();
 
-    orders.forEach((order) => {
+    normalizedOrders.forEach((order) => {
       (order.items || []).forEach((item) => {
         const product = item.productId;
 
@@ -689,6 +724,10 @@ export const getSupersalerPurchasedProducts = async (req, res) => {
             purchasedPrice: item.price || 0,
             purchasedFromOrder: order.orderId,
             purchasedAt: order.createdAt,
+            orderStatus: order.orderStatus,
+            paymentStatus: order.paymentStatus,
+            paymentStatusDisplay: order.paymentStatusDisplay,
+            adminActionStatus: order.adminActionStatus,
             isPurchased: true,
           });
         }
@@ -1018,6 +1057,15 @@ export const updateSupersalerOwnProduct = async (req, res) => {
     }
 
     if (quantity) {
+      const nextQuantity = parseQuantityNumber(quantity);
+      const currentQuantity = parseQuantityNumber(product.quantity);
+
+      if (product.sourceProduct && nextQuantity > currentQuantity) {
+        return res.status(400).json({
+          message: "Quantity cannot exceed your owned stock",
+        });
+      }
+
       product.quantity = quantity.toString();
     }
 
@@ -1127,5 +1175,3 @@ export const deleteSupersalerOwnProduct = async (req, res) => {
     });
   }
 };
-
-

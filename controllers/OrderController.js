@@ -4,6 +4,58 @@ import User from '../models/User.js';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 
+const isAdminApprovedOrder = (order = {}) => {
+    const orderStatus = String(order.orderStatus || '').toLowerCase();
+    const paymentStatus = String(order.paymentStatus || '').toLowerCase();
+    const adminActionStatus = String(order.adminActionStatus || '').toLowerCase();
+
+    return (
+        paymentStatus === 'paid' ||
+        orderStatus === 'confirmed' ||
+        orderStatus === 'delivered' ||
+        orderStatus === 'completed' ||
+        adminActionStatus === 'confirmed'
+    );
+};
+
+const normalizeApprovedOrder = (order = {}) => {
+    const plain = typeof order.toObject === 'function'
+        ? order.toObject({ virtuals: true })
+        : { ...order };
+
+    if (isAdminApprovedOrder(plain)) {
+        plain.orderStatus = 'delivered';
+        plain.statusDisplay = 'Delivered';
+        plain.paymentStatus = 'paid';
+        plain.paymentStatusDisplay = 'Paid';
+        plain.adminActionStatus = plain.adminActionStatus || 'confirmed';
+    }
+
+    return plain;
+};
+
+const syncApprovedOrdersAsPaid = async (orders = []) => {
+    const idsToRepair = orders
+        .filter((order) => isAdminApprovedOrder(order) && order.paymentStatus !== 'paid')
+        .map((order) => order._id)
+        .filter(Boolean);
+
+    if (idsToRepair.length) {
+        await Order.updateMany(
+            { _id: { $in: idsToRepair } },
+            {
+                $set: {
+                    orderStatus: 'delivered',
+                    paymentStatus: 'paid',
+                    adminActionStatus: 'confirmed',
+                },
+            }
+        );
+    }
+
+    return orders.map(normalizeApprovedOrder);
+};
+
 class OrderController {
     // Create a new order
     // Create a new order (tailored to your Product schema)
@@ -81,7 +133,7 @@ class OrderController {
 
                 // Fetch only fields your DB stores
                 const product = await Product.findById(productId)
-                    .select('productName quantity price image secondaryImages addToSellPost')
+                    .select('productName quantity price image secondaryImages addToSellPost status')
                     .lean();
 
                 if (!product) {
@@ -89,6 +141,10 @@ class OrderController {
                 }
 
                 const productName = product.productName || 'this product';
+
+                if (product.status !== 'approved') {
+                    return res.status(400).json({ success: false, message: `Product ${productName} is not approved` });
+                }
 
                 // Treat addToSellPost === "no" as inactive; everything else = active
                 const isActive = String(product.addToSellPost ?? 'yes').toLowerCase() !== 'no';
@@ -215,8 +271,10 @@ class OrderController {
                 Order.countDocuments(criteria),
             ]);
 
+            const normalizedOrders = await syncApprovedOrdersAsPaid(orders);
+
             // 5) Shape response
-            const formattedOrders = orders.map((order) => ({
+            const formattedOrders = normalizedOrders.map((order) => ({
                 orderId: order.orderId,
                 orderStatus: order.orderStatus,
                 statusDisplay: order.statusDisplay,                   // virtual
@@ -284,27 +342,29 @@ class OrderController {
                 return res.status(403).json({ success: false, message: 'Access denied. This order does not belong to you.' });
             }
 
+            const [normalizedOrder] = await syncApprovedOrdersAsPaid([order]);
+
             const orderDetails = {
-                orderId: order.orderId,
-                orderStatus: order.orderStatus,
-                statusDisplay: order.statusDisplay,
-                paymentMethod: order.paymentMethod,
-                paymentStatus: order.paymentStatus,
-                paymentStatusDisplay: order.paymentStatusDisplay,
-                subtotal: order.subtotal,
-                deliveryFee: order.deliveryFee,
-                totalAmount: order.totalAmount,
-                totalItems: order.totalItems,
-                shippingAddress: order.shippingAddress,
-                orderNotes: order.orderNotes,
-                estimatedDelivery: order.estimatedDelivery,
-                actualDelivery: order.actualDelivery,
-                cancelledAt: order.cancelledAt,
-                cancelledBy: order.cancelledBy,
-                cancellationReason: order.cancellationReason,
-                createdAt: order.createdAt,
-                updatedAt: order.updatedAt,
-                items: order.items.map(i => ({
+                orderId: normalizedOrder.orderId,
+                orderStatus: normalizedOrder.orderStatus,
+                statusDisplay: normalizedOrder.statusDisplay,
+                paymentMethod: normalizedOrder.paymentMethod,
+                paymentStatus: normalizedOrder.paymentStatus,
+                paymentStatusDisplay: normalizedOrder.paymentStatusDisplay,
+                subtotal: normalizedOrder.subtotal,
+                deliveryFee: normalizedOrder.deliveryFee,
+                totalAmount: normalizedOrder.totalAmount,
+                totalItems: normalizedOrder.totalItems,
+                shippingAddress: normalizedOrder.shippingAddress,
+                orderNotes: normalizedOrder.orderNotes,
+                estimatedDelivery: normalizedOrder.estimatedDelivery,
+                actualDelivery: normalizedOrder.actualDelivery,
+                cancelledAt: normalizedOrder.cancelledAt,
+                cancelledBy: normalizedOrder.cancelledBy,
+                cancellationReason: normalizedOrder.cancellationReason,
+                createdAt: normalizedOrder.createdAt,
+                updatedAt: normalizedOrder.updatedAt,
+                items: normalizedOrder.items.map(i => ({
                     productId: i.productId,
                     productName: i.productName,
                     productImage: i.productImage,
@@ -543,11 +603,14 @@ class OrderController {
 
             const totalOrders = await Order.countDocuments(query);
 
-            const formattedOrders = orders.map((order) => ({
+            const normalizedOrders = await syncApprovedOrdersAsPaid(orders);
+
+            const formattedOrders = normalizedOrders.map((order) => ({
                 orderId: order.orderId,
                 userId: order.userId,
                 orderStatus: order.orderStatus,
                 paymentStatus: order.paymentStatus,
+                paymentStatusDisplay: order.paymentStatusDisplay,
                 totalAmount: order.totalAmount,
                 totalItems: order.totalItems,
                 shippingAddress: order.shippingAddress,

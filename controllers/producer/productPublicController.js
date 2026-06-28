@@ -5,6 +5,10 @@ import Category from "../../models/Category.js";
 
 const { Types: { ObjectId } } = mongoose;
 const isOid = (v) => ObjectId.isValid(String(v));
+const parseQuantityNumber = (value) => {
+  const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 /** Build filters for list endpoints, tolerant to mixed category storage */
 async function buildFilters(query) {
@@ -12,6 +16,7 @@ async function buildFilters(query) {
 
   const filters = {
     // show only products intended for public
+    status: "approved",
     addToSellPost: { $regex: "^yes", $options: "i" }, // matches "yes", "Yes", "yes 4", etc.
   };
 
@@ -100,7 +105,9 @@ export const listProducts = async (req, res) => {
       .limit(Number(limit))
       .lean();
 
-    const items = await hydrateCategories(docs);
+    const items = (await hydrateCategories(docs)).filter(
+      (product) => parseQuantityNumber(product.quantity) > 0
+    );
     const total = await Product.countDocuments(filters);
 
     res.json({
@@ -131,6 +138,7 @@ export const getProductPublic = async (req, res) => {
 
     const doc = await Product.findOne({
       _id: new ObjectId(productId),
+      status: "approved",
       addToSellPost: { $regex: "^yes", $options: "i" },
     })
       .select("productName quantity price previousPrice image secondaryImages description category producer createdAt updatedAt")
@@ -138,6 +146,9 @@ export const getProductPublic = async (req, res) => {
       .lean();
 
     if (!doc) return res.status(404).json({ message: "Product not found" });
+    if (parseQuantityNumber(doc.quantity) <= 0) {
+      return res.status(404).json({ message: "Product not found" });
+    }
 
     const [item] = await hydrateCategories([doc]);
     res.json({ message: "Product fetched", product: item });
@@ -161,6 +172,7 @@ export const listByProducer = async (req, res) => {
 
     const filters = {
       producer: new ObjectId(producerId),
+      status: "approved",
       addToSellPost: { $regex: "^yes", $options: "i" },
     };
 
@@ -173,7 +185,9 @@ export const listByProducer = async (req, res) => {
       .limit(Number(limit))
       .lean();
 
-    const items = await hydrateCategories(docs);
+    const items = (await hydrateCategories(docs)).filter(
+      (product) => parseQuantityNumber(product.quantity) > 0
+    );
     const total = await Product.countDocuments(filters);
 
     res.json({
