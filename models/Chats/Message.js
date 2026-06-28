@@ -121,6 +121,7 @@ const messageSchema = new mongoose.Schema(
       enum: ["user_joined", "user_left", "admin_assigned", "chat_closed", "chat_resolved", "chat_escalated", "priority_changed", "category_changed"],
     },
     // Message metadata
+    // message metadata
     senderRole: {
       type: String,
       enum: ["admin", "consumer", "producer", "supersaler", "wholesaler"],
