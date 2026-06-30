@@ -22,6 +22,9 @@ const notificationSchema = new mongoose.Schema(
             // ✅ ADD THESE TWO
         "product_approved",
         "product_rejected",
+        "order_approved",
+        "order_rejected",
+        "order_status_updated",
 
         // Chat notifications
         "new_message",
@@ -78,7 +81,7 @@ const notificationSchema = new mongoose.Schema(
     // User type for filtering
     userType: {
       type: String,
-      enum: ["admin", "consumer", "producer", "superseller", "wholesaler"],
+      enum: ["admin", "consumer", "producer", "superseller", "supersaler", "wholesaler"],
     },
     // Notification status
     isRead: {

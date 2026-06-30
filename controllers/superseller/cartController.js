@@ -185,6 +185,117 @@ export const getCart = async (req, res) => {
   }
 };
 
+export const updateQuantityInCart = async (req, res) => {
+  try {
+    if (req.user.role !== "supersaler") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const { productId, quantity } = req.body;
+    const qty = Number(quantity);
+
+    if (!productId || !Number.isFinite(qty) || qty <= 0) {
+      return res.status(400).json({ message: "Valid productId and quantity are required" });
+    }
+
+    const cart = await SupersalerBuyProductCart.findOne({
+      supersaler: req.user._id,
+    }).populate({
+      path: "items.product",
+      populate: { path: "producer" },
+    });
+
+    if (!cart) {
+      return res.status(404).json({ message: "Cart not found" });
+    }
+
+    const item = cart.items.find(
+      (cartItem) => cartItem.product?._id?.toString() === productId || cartItem.product?.toString() === productId
+    );
+
+    if (!item) {
+      return res.status(404).json({ message: "Product not found in cart" });
+    }
+
+    const product = item.product?._id ? item.product : await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const availableQuantity = parseQuantityNumber(product.quantity);
+    if (qty > availableQuantity) {
+      return res.status(400).json({
+        message: "Not enough stock",
+        available: availableQuantity,
+      });
+    }
+
+    item.quantity = qty;
+    await cart.save();
+
+    const nextCart = await SupersalerBuyProductCart.findOne({
+      supersaler: req.user._id,
+    }).populate({
+      path: "items.product",
+      populate: { path: "producer" },
+    });
+
+    const cartObject = nextCart.toObject();
+    cartObject.items = cartObject.items.map((cartItem) => ({
+      ...cartItem,
+      product: cartItem.product
+        ? applyPricingToProduct(cartItem.product, PROFIT_RATES.producerBulkToSupersaler)
+        : cartItem.product,
+    }));
+
+    return res.status(200).json({
+      message: "Cart quantity updated",
+      cart: cartObject,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const deleteFromCart = async (req, res) => {
+  try {
+    if (req.user.role !== "supersaler") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const { productId } = req.params;
+    const cart = await SupersalerBuyProductCart.findOne({
+      supersaler: req.user._id,
+    });
+
+    if (!cart) {
+      return res.status(404).json({ message: "Cart not found" });
+    }
+
+    const previousLength = cart.items.length;
+    cart.items = cart.items.filter((item) => item.product.toString() !== productId);
+
+    if (cart.items.length === previousLength) {
+      return res.status(404).json({ message: "Product not found in cart" });
+    }
+
+    await cart.save();
+
+    return res.status(200).json({
+      message: "Product removed from cart",
+      cart,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
 
 // =============================
 // ✅ CHECKOUT CART (BUY PROCESS)

@@ -138,7 +138,7 @@ class OrderController {
 
                 // Fetch only fields your DB stores
                 const product = await Product.findById(productId)
-                    .select('productName quantity price image secondaryImages addToSellPost status')
+                    .select('productName quantity unit price image secondaryImages addToSellPost status')
                     .lean();
 
                 if (!product) {

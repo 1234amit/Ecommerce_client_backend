@@ -538,8 +538,8 @@ export const addProduct = async (req, res) => {
 
       productName: String(productName),
 
-      quantity: qty,
-      unit,
+      quantity: String(quantity),
+      unit: String(unit),
 
       price: inputPrice,
       priceType,

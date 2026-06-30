@@ -7,11 +7,16 @@ import Order from "../../models/Order.js";
 import SellPost from "../../models/SellPost.js"; // ✅ ADD THIS
 import BulkOrder from "../../models/BulkOrder.js";
 import Category from "../../models/Category.js";
+import DeviceSession from "../../models/DeviceSession.js";
 import {
   DELIVERY_CHARGE,
   PROFIT_RATES,
   calculateProfitPrice,
 } from "../../services/pricingService.js";
+import {
+  notifyOrderDecision,
+  notifyProductDecision,
+} from "../../services/notificationService.js";
 
 const validOrderStatuses = [
   "pending",
@@ -32,6 +37,7 @@ const validPaymentStatuses = [
 const normalizeAdminOrderStatus = (status) => {
   if (!status) return undefined;
   if (status === "completed" || status === "approved") return "delivered";
+  if (status === "rejected") return "cancelled";
   return status;
 };
 
@@ -64,6 +70,10 @@ const isAdminCompletedOrderStatus = (value) => {
 };
 
 const getProductProfitRate = (product = {}) => {
+  if (product.adminProfitRate !== null && product.adminProfitRate !== undefined) {
+    return product.adminProfitRate;
+  }
+
   const ownerRole = String(product.producer?.role || product.producerRole || "").toLowerCase();
   const productType = String(product.productType || "").toLowerCase();
 
@@ -72,6 +82,111 @@ const getProductProfitRate = (product = {}) => {
   }
 
   return PROFIT_RATES.retailToConsumer;
+};
+
+export const updateProductProfitRate = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const { productId } = req.params;
+    const { profitRate } = req.body;
+    const nextRate = Number(profitRate);
+
+    if (!Number.isFinite(nextRate) || nextRate < 0 || nextRate > 100) {
+      return res.status(400).json({ message: "Profit rate must be between 0 and 100" });
+    }
+
+    const product = await Product.findById(productId)
+      .populate("producer", "name email phone role")
+      .populate("category", "name");
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    product.adminProfitRate = nextRate;
+    await product.save({ validateBeforeSave: false });
+
+    return res.json({
+      success: true,
+      message: "Product profit rate updated successfully",
+      product: withAdminProductPricing(product),
+    });
+  } catch (error) {
+    console.error("updateProductProfitRate error:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const getSuperAdminDevices = async (req, res) => {
+  try {
+    if (req.user.authRole !== "superadmin" && req.user.role !== "superadmin") {
+      return res.status(403).json({ message: "Superadmin access required" });
+    }
+
+    const userId = req.user._id || req.user.id;
+    const sessions = await DeviceSession.find({
+      user: userId,
+      revokedAt: null,
+    })
+      .sort({ lastActiveAt: -1 })
+      .select("-userAgent");
+
+    return res.json({
+      success: true,
+      devices: sessions,
+      maxDevices: 3,
+    });
+  } catch (error) {
+    console.error("getSuperAdminDevices error:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const revokeSuperAdminDevice = async (req, res) => {
+  try {
+    if (req.user.authRole !== "superadmin" && req.user.role !== "superadmin") {
+      return res.status(403).json({ message: "Superadmin access required" });
+    }
+
+    const { sessionId } = req.params;
+    const { password, otp } = req.body || {};
+
+    if (otp !== "123456") {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    const userId = req.user._id || req.user.id;
+    const user = await User.findById(userId).select("+password");
+    const passwordMatches = await bcrypt.compare(password || "", user?.password || "");
+
+    if (!passwordMatches) {
+      return res.status(400).json({ message: "Invalid password" });
+    }
+
+    const session = await DeviceSession.findOne({
+      user: userId,
+      sessionId,
+      revokedAt: null,
+    });
+
+    if (!session) {
+      return res.status(404).json({ message: "Device not found" });
+    }
+
+    session.revokedAt = new Date();
+    await session.save();
+
+    return res.json({
+      success: true,
+      message: "Device removed successfully",
+    });
+  } catch (error) {
+    console.error("revokeSuperAdminDevice error:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
 };
 
 const withAdminProductPricing = (product = {}) => {
@@ -1736,17 +1851,10 @@ export const approveProduct = async (req, res) => {
     // ✅ Save product
     await product.save({ validateBeforeSave: false });
 
-    // ✅ Create notification
-    await Notification.create({
-      recipient: product.producer?._id,
-      sender: req.user._id,
-      type: "product_approved",
-      category: "product",
-      title: "Product Approved",
-      message: `Your product "${product.productName}" has been approved by admin.`,
-      productId: product._id,
-      priority: "normal",
-      isRead: false,
+    await notifyProductDecision({
+      product,
+      adminId: req.user._id,
+      approved: true,
     });
 
     // ✅ Response
@@ -1802,17 +1910,12 @@ export const rejectProduct = async (req, res) => {
     //   createdAt: new Date(),
     // });
 
-    await Notification.create({
-  recipient: product.producer._id,
-  sender: req.user._id,
-  type: "product_rejected",
-  category: "product",
-  title: "Product Rejected",
-  message: `Your product "${product.productName}" has been rejected by admin.`,
-  productId: product._id,
-  priority: "high",
-  isRead: false,
-});
+    await notifyProductDecision({
+      product,
+      adminId: req.user._id,
+      approved: false,
+      reason: req.body?.reason,
+    });
 
     res.json({
       message: "Product rejected successfully",
@@ -2008,6 +2111,15 @@ export const updateSupersalerOrderStatus = async (req, res) => {
       updateData.adminActionAt = new Date();
     }
 
+    if (updateData.orderStatus === "cancelled") {
+      updateData.adminActionStatus = "rejected";
+      updateData.adminActionBy = req.user.id;
+      updateData.adminActionAt = new Date();
+      updateData.cancelledBy = "admin";
+      updateData.cancelledAt = new Date();
+      updateData.cancellationReason = req.body.reason || req.body.cancellationReason || "Rejected by admin";
+    }
+
     if (updateData.paymentStatus === "paid" || isAdminCompletedOrderStatus(updateData.orderStatus)) {
       const orderBeforeUpdate = await Order.findById(orderId);
       if (!orderBeforeUpdate) {
@@ -2033,6 +2145,21 @@ export const updateSupersalerOrderStatus = async (req, res) => {
     const syncedOrder = await Order.findById(orderId)
       .populate("userId", "name email phone role district thana")
       .populate("items.productId");
+
+    if (syncedOrder?.paymentStatus === "paid" || isAdminCompletedOrderStatus(syncedOrder?.orderStatus)) {
+      await notifyOrderDecision({
+        order: syncedOrder,
+        adminId: req.user._id,
+        approved: true,
+      });
+    } else if (syncedOrder?.orderStatus === "cancelled" || syncedOrder?.adminActionStatus === "rejected") {
+      await notifyOrderDecision({
+        order: syncedOrder,
+        adminId: req.user._id,
+        approved: false,
+        reason: syncedOrder?.cancellationReason,
+      });
+    }
 
     return res.status(200).json({
       message: "Order status updated successfully",
@@ -2175,6 +2302,15 @@ export const updateWholesalerOrderStatus = async (req, res) => {
       await assertOrderInventoryAvailable(orderBeforeUpdate);
     }
 
+    if (updateData.orderStatus === "cancelled") {
+      updateData.adminActionStatus = "rejected";
+      updateData.adminActionBy = req.user.id;
+      updateData.adminActionAt = new Date();
+      updateData.cancelledBy = "admin";
+      updateData.cancelledAt = new Date();
+      updateData.cancellationReason = req.body.reason || req.body.cancellationReason || "Rejected by admin";
+    }
+
     const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
       { $set: updateData },
@@ -2196,6 +2332,21 @@ export const updateWholesalerOrderStatus = async (req, res) => {
     const syncedOrder = await Order.findById(orderId)
       .populate("userId", "name email phone")
       .populate("items.productId");
+
+    if (syncedOrder?.paymentStatus === "paid" || isAdminCompletedOrderStatus(syncedOrder?.orderStatus)) {
+      await notifyOrderDecision({
+        order: syncedOrder,
+        adminId: req.user._id,
+        approved: true,
+      });
+    } else if (syncedOrder?.orderStatus === "cancelled" || syncedOrder?.adminActionStatus === "rejected") {
+      await notifyOrderDecision({
+        order: syncedOrder,
+        adminId: req.user._id,
+        approved: false,
+        reason: syncedOrder?.cancellationReason,
+      });
+    }
 
     return res.status(200).json({
       message: "Wholesaler order updated successfully",
@@ -2348,6 +2499,15 @@ export const updateConsumerOrderStatus = async (req, res) => {
       await assertOrderInventoryAvailable(orderBeforeUpdate);
     }
 
+    if (updateData.orderStatus === "cancelled") {
+      updateData.adminActionStatus = "rejected";
+      updateData.adminActionBy = req.user.id;
+      updateData.adminActionAt = new Date();
+      updateData.cancelledBy = "admin";
+      updateData.cancelledAt = new Date();
+      updateData.cancellationReason = req.body.reason || req.body.cancellationReason || "Rejected by admin";
+    }
+
     const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
       { $set: updateData },
@@ -2369,6 +2529,21 @@ export const updateConsumerOrderStatus = async (req, res) => {
     const syncedOrder = await Order.findById(orderId)
       .populate("userId", "name email phone role")
       .populate("items.productId");
+
+    if (syncedOrder?.paymentStatus === "paid" || isAdminCompletedOrderStatus(syncedOrder?.orderStatus)) {
+      await notifyOrderDecision({
+        order: syncedOrder,
+        adminId: req.user._id,
+        approved: true,
+      });
+    } else if (syncedOrder?.orderStatus === "cancelled" || syncedOrder?.adminActionStatus === "rejected") {
+      await notifyOrderDecision({
+        order: syncedOrder,
+        adminId: req.user._id,
+        approved: false,
+        reason: syncedOrder?.cancellationReason,
+      });
+    }
 
     return res.status(200).json({
       message: "Consumer order updated successfully",
@@ -3217,6 +3392,13 @@ export const rejectSupersalerProductByAdmin = async (req, res) => {
       select: "name phone role",
     });
 
+    await notifyProductDecision({
+      product: updatedProduct,
+      adminId: req.user._id,
+      approved: false,
+      reason,
+    });
+
     return res.status(200).json({
       message: "Supersaler product rejected successfully",
       product: updatedProduct,
@@ -3324,6 +3506,13 @@ export const rejectAllProductByAdmin = async (req, res) => {
     ).populate({
       path: "producer",
       select: "name phone role",
+    });
+
+    await notifyProductDecision({
+      product: updatedProduct,
+      adminId: req.user._id,
+      approved: false,
+      reason,
     });
 
     return res.status(200).json({
@@ -3458,6 +3647,11 @@ export const adminApproveOrder = async (req, res) => {
       order.approvedAt = order.approvedAt || new Date();
       await order.save();
       await transferInventoryForBulkOrderApproval(order);
+      await notifyOrderDecision({
+        order: { ...order.toObject(), userId: order.wholesaler },
+        adminId: req.user._id,
+        approved: true,
+      });
       return res.status(200).json({
         message: "Order already approved",
         order,
@@ -3508,6 +3702,11 @@ export const adminApproveOrder = async (req, res) => {
     }
 
     await transferInventoryForBulkOrderApproval(order);
+    await notifyOrderDecision({
+      order: { ...order.toObject(), userId: order.wholesaler },
+      adminId: req.user._id,
+      approved: true,
+    });
 
     return res.status(200).json({
       message: "Order approved successfully",
@@ -3557,6 +3756,11 @@ export const adminRejectOrder = async (req, res) => {
     order.rejectedAt = new Date();
 
     await order.save();
+    await notifyOrderDecision({
+      order: { ...order.toObject(), userId: order.wholesaler },
+      adminId: req.user._id,
+      approved: false,
+    });
 
     return res.status(200).json({
       message: "Order rejected successfully",

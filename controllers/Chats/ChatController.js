@@ -217,12 +217,22 @@ export const sendMessage = async (req, res) => {
 //   }
 // }
 
+    const normalizedContent = String(content || "").trim();
+    const safeContent =
+      normalizedContent ||
+      (messageType === "image" ? "ছবি" : "") ||
+      (messageType === "file" ? fileName || "ফাইল" : "");
+
+    if (!safeContent) {
+      return res.status(400).json({ message: "Message content is required" });
+    }
+
     // Create message
     const message = new Message({
       chatId,
       sender: senderId,
       receiver: receiverId,
-      content,
+      content: safeContent,
       messageType,
       replyTo,
       mediaUrl,
@@ -265,16 +275,22 @@ export const sendMessage = async (req, res) => {
         sender: senderId,
         type: "new_message",
         title: "New Message",
-        message: `New message in chat: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`,
+        message: `New message in chat: ${safeContent.substring(0, 50)}${safeContent.length > 50 ? '...' : ''}`,
         chatId: chat._id,
         messageId: message._id,
         priority: message.priority
       });
     }
 
-    socketService.sendToChat(chat._id.toString(), "new_message", {
+    const realtimeMessage = {
+      ...message.toObject(),
       chatId: chat._id.toString(),
-      message,
+    };
+
+    socketService.sendToChat(chat._id.toString(), "new_message", {
+      ...realtimeMessage,
+      data: realtimeMessage,
+      message: realtimeMessage,
     });
 
     if (!senderIsAdmin) {

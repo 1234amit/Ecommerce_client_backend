@@ -99,7 +99,7 @@ export const listProducts = async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
 
     const docs = await Product.find(filters)
-      .select("productName quantity price previousPrice image secondaryImages description category producer createdAt updatedAt")
+      .select("productName quantity unit price previousPrice image secondaryImages description category producer createdAt updatedAt")
       .populate({ path: "producer", select: "name division district thana" }) // safe to populate
       .sort(sort)
       .skip(skip)
@@ -142,7 +142,7 @@ export const getProductPublic = async (req, res) => {
       status: "approved",
       addToSellPost: { $regex: "^yes", $options: "i" },
     })
-      .select("productName quantity price previousPrice image secondaryImages description category producer createdAt updatedAt")
+      .select("productName quantity unit price previousPrice image secondaryImages description category producer createdAt updatedAt")
       .populate({ path: "producer", select: "name division district thana" })
       .lean();
 
@@ -181,7 +181,7 @@ export const listByProducer = async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
 
     const docs = await Product.find(filters)
-      .select("productName quantity price previousPrice image secondaryImages description category producer createdAt updatedAt")
+      .select("productName quantity unit price previousPrice image secondaryImages description category producer createdAt updatedAt")
       .sort(sort)
       .skip(skip)
       .limit(Number(limit))

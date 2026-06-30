@@ -3,6 +3,9 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { isAdminRole } from "../utils/roles.js";
+import crypto from "crypto";
+import { UAParser } from "ua-parser-js";
+import DeviceSession from "../models/DeviceSession.js";
 
 dotenv.config();
 
@@ -231,9 +234,41 @@ export const loginUser = async (req, res) => {
     user.lastLogin = new Date();
     await user.save();
 
+    const sessionId = crypto.randomUUID();
+    const tokenPayload = { id: user._id, role: user.role };
+
+    if (user.role === "superadmin") {
+      const activeSessions = await DeviceSession.find({
+        user: user._id,
+        revokedAt: null,
+      }).sort({ lastActiveAt: 1 });
+
+      if (activeSessions.length >= 3) {
+        return res.status(403).json({
+          message: "Maximum 3 devices are allowed for superadmin. Remove a device first.",
+        });
+      }
+
+      const parsedAgent = new UAParser(req.headers["user-agent"] || "").getResult();
+      await DeviceSession.create({
+        user: user._id,
+        sessionId,
+        deviceName: [parsedAgent.device.vendor, parsedAgent.device.model]
+          .filter(Boolean)
+          .join(" ") || parsedAgent.device.type || "Desktop",
+        browser: [parsedAgent.browser.name, parsedAgent.browser.version].filter(Boolean).join(" "),
+        os: [parsedAgent.os.name, parsedAgent.os.version].filter(Boolean).join(" "),
+        ipAddress: req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || "",
+        userAgent: req.headers["user-agent"] || "",
+        lastActiveAt: new Date(),
+      });
+
+      tokenPayload.sessionId = sessionId;
+    }
+
     // Generate JWT token
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      tokenPayload,
       process.env.jwt_secret,
       { expiresIn: "30d" }
     );
@@ -281,7 +316,6 @@ export const logoutUser = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
 
 
 

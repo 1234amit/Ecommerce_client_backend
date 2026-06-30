@@ -47,7 +47,8 @@ export const buildPricingBreakdown = ({ basePrice, quantity = 1, ratePercent }) 
 
 export const applyPricingToProduct = (product = {}, ratePercent) => {
   const source = typeof product.toObject === "function" ? product.toObject() : { ...product };
-  const pricing = calculateProfitPrice(source.price ?? source.pricePerKg ?? 0, ratePercent);
+  const effectiveRate = source.adminProfitRate ?? ratePercent;
+  const pricing = calculateProfitPrice(source.price ?? source.pricePerKg ?? 0, effectiveRate);
 
   return {
     ...source,

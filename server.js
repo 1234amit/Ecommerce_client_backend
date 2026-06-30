@@ -24,6 +24,7 @@ import productPublicRoutes from "./routes/producer/productPublicRoutes.js";
 import reviewsRoutes from "./routes/reviewsRoutes.js";
 import faqRoutes from "./routes/faqRoutes.js";
 import chat from "./routes/chat.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 import { ensureSuperAdmin } from "./services/superAdminSeed.js";
 import socketService from "./services/socketService.js";
 
@@ -66,11 +67,31 @@ app.use(
     ],
     credentials: true, // Allow cookies
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cache-Control", "Pragma"],
   })
 );
 
-app.options("*", cors()); 
+app.options(
+  "*",
+  cors({
+    origin: [
+      "https://krishighar.com",
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:3000",
+      "https://krishi-ghar.vercel.app",
+      "https://krishi-ghar-admin.vercel.app",
+      "https://krishi-test-frontend.vercel.app",
+      "https://ecom-krishi-test.vercel.app",
+      "https://admin.krishighar.com",
+      "https://krishi-ghar-admin-two.vercel.app",
+      "https://krishi-ghar-five.vercel.app",
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cache-Control", "Pragma"],
+  })
+);
 
 // Routes
 app.use("/api/v1", AuthRoutes);
@@ -88,6 +109,7 @@ app.use("/api/v1/payments", paymentRoutes)
 app.use("/api/v1/products", productPublicRoutes);
 app.use("/api/v1/reviews", reviewsRoutes);
 app.use("/api/v1/chats", chat)
+app.use("/api/v1/notifications", notificationRoutes)
 app.use("/api/v1/faq", faqRoutes)
 
 

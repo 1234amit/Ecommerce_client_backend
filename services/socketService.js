@@ -16,8 +16,16 @@ class SocketService {
   initialize(server) {
     this.io = new Server(server, {
       cors: {
-        origin: process.env.CORS_ORIGIN?.split(",") || ["http://localhost:3000"],
-        methods: ["GET", "POST"],
+        origin: process.env.CORS_ORIGIN?.split(",") || [
+          "http://localhost:3000",
+          "http://localhost:5173",
+          "http://localhost:5174",
+          "https://krishighar.com",
+          "https://admin.krishighar.com",
+          "https://krishi-ghar.vercel.app",
+          "https://krishi-ghar-admin.vercel.app",
+        ],
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
         credentials: true,
       },
       transports: ["websocket", "polling"],
@@ -68,7 +76,7 @@ class SocketService {
       console.log(`User connected: ${socket.userName} (${socket.userId})`);
       
       this.handleConnection(socket);
-      this.handleDisconnection(socket);
+      socket.on("disconnect", () => this.handleDisconnection(socket));
       this.handleChatEvents(socket);
       this.handleTypingEvents(socket);
     });

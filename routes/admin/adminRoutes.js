@@ -13,6 +13,8 @@ import {
   updateAdminProfile,
   updateAdminProfileImage,
   updateAdminCategory,
+  getSuperAdminDevices,
+  revokeSuperAdminDevice,
   getAllUsers,
   getUserById,
   deleteUserById,
@@ -46,6 +48,7 @@ import {
   getProductDetailsByAdmin,
   approveProduct,
   rejectProduct,
+  updateProductProfitRate,
   getAllSellPostsForAdmin,
   getAllSupersalerOrdersForAdmin,
   updateSupersalerOrderStatus,
@@ -67,20 +70,11 @@ import {
   rejectAllProductByAdmin,
 } from "../../controllers/admin/adminController.js";
 import multer from "multer";
-import path from 'path';
 
 const router = express.Router();
 
 // Multer setup for file upload
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+const storage = multer.memoryStorage();
 
 // File filter
 const fileFilter = (req, file, cb) => {
@@ -111,6 +105,8 @@ router.put("/profile-image", verifyToken, verifyAdmin, upload.single('image'), u
 
 // Change Admin Password
 router.put("/change-password", verifyToken, verifyAdmin, changeAdminPassword);
+router.get("/devices", verifyToken, verifyAdmin, getSuperAdminDevices);
+router.delete("/devices/:sessionId", verifyToken, verifyAdmin, revokeSuperAdminDevice);
 
 router.get("/profits", verifyToken, verifyAdmin, getAdminProfitReport);
 router.get("/categories", verifyToken, verifyAdmin, getAdminCategories);
@@ -237,6 +233,7 @@ router.get("/products/rejected", verifyToken, verifyAdmin, getRejectedProducts);
 
 router.get("/products/all", verifyToken, verifyAdmin, getAllProductsAdmin);
 router.get("/products/:productId", verifyToken, verifyAdmin, getProductDetailsByAdmin);
+router.patch("/products/:productId/profit-rate", verifyToken, verifyAdmin, updateProductProfitRate);
 
 router.put("/products/approve/:productId", verifyToken, verifyAdmin, approveProduct);
 router.put("/products/reject/:productId", verifyToken, verifyAdmin, rejectProduct);

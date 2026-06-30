@@ -35,6 +35,11 @@ const productSchema = new mongoose.Schema(
       required: true,
     },
 
+    unit: {
+      type: String,
+      default: "",
+    },
+
     soldQuantity: {
       type: Number,
       default: 0,
@@ -48,6 +53,23 @@ const productSchema = new mongoose.Schema(
     price: {
       type: String,
       required: true,
+    },
+
+    totalPrice: {
+      type: Number,
+      default: 0,
+    },
+
+    pricePerKg: {
+      type: Number,
+      default: 0,
+    },
+
+    adminProfitRate: {
+      type: Number,
+      default: null,
+      min: 0,
+      max: 100,
     },
 
     previousPrice: {

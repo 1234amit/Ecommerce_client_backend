@@ -811,7 +811,6 @@ export const getBulkPosts = async (req, res) => {
 
 
 
-// import SellPost from "../../models/SellPost.js";
 
 export const getBulkPostsForSupersaler = async (req, res) => {
   try {
@@ -858,53 +857,6 @@ export const getBulkPostsForSupersaler = async (req, res) => {
 };
 
 
-// export const getBulkPostsForSupersaler = async (req, res) => {
-//   try {
-//     if (req.user.role !== "supersaler") {
-//       return res.status(403).json({ message: "Unauthorized access" });
-//     }
-
-//     const userDistrict = req.user.district?.trim();
-//     const userThana = req.user.thana?.trim();
-
-//     if (!userDistrict || !userThana) {
-//       return res.status(400).json({
-//         message: "User district and thana missing",
-//       });
-//     }
-
-//     const posts = await SellPost.find({
-//       sellType: "bulk",
-//       isActive: true,
-
-//       // ✅ FIXED visibility logic
-//       visibility: { $in: ["all", "supersaler"] },
-
-//       // ✅ safer matching (case insensitive)
-//       district: { $regex: new RegExp(`^${userDistrict}$`, "i") },
-//       thana: { $regex: new RegExp(`^${userThana}$`, "i") },
-
-//       seller: { $ne: req.user._id },
-//       remainingQuantity: { $gt: 0 },
-//     })
-//       .populate("product", "productName image pricePerKg unit")
-//       .populate("seller", "name phone district thana role")
-//       .populate("producer", "name phone district thana role")
-//       .sort({ createdAt: -1 });
-
-//     return res.json({
-//       message: "Bulk posts fetched successfully for supersaler",
-//       totalFound: posts.length,
-//       posts,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       message: "Server error",
-//       error: error.message,
-//     });
-//   }
-// };
-
 
 
 export const addSupersalerProduct = async (req, res) => {
@@ -919,6 +871,7 @@ export const addSupersalerProduct = async (req, res) => {
     const {
       productName,
       quantity,
+      unit,
       price,
       description,
       category,
@@ -996,6 +949,7 @@ export const addSupersalerProduct = async (req, res) => {
 
       productName: productName.trim(),
       quantity: quantity.toString(),
+      unit: unit ? String(unit) : "",
       price: price.toString(),
       previousPrice: price.toString(),
 
@@ -1113,9 +1067,12 @@ export const updateSupersalerOwnProduct = async (req, res) => {
       product.price = price.toString();
     }
 
-    if (description) {
-      product.description = description.trim();
-    }
+  if (description !== undefined) {
+  product.description =
+    typeof description === "string"
+      ? description.trim()
+      : (description?.html || description?.text || "").trim();
+}
 
     if (category) {
       product.category = category;

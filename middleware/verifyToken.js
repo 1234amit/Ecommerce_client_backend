@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import User from '../models/User.js';
+import DeviceSession from "../models/DeviceSession.js";
 
 dotenv.config();
 
@@ -24,6 +25,25 @@ export const verifyToken = async (req, res, next) => {
     console.log('User found:', user); // Debug log
     if (!user) {
       return res.status(401).json({ message: `Unauthorized: User not found for id: ${decoded.id || decoded._id}` });
+    }
+    if (user.role === "superadmin") {
+      if (!decoded.sessionId) {
+        return res.status(401).json({ message: "Unauthorized: Device session required" });
+      }
+
+      const session = await DeviceSession.findOne({
+        user: user._id,
+        sessionId: decoded.sessionId,
+        revokedAt: null,
+      });
+
+      if (!session) {
+        return res.status(401).json({ message: "Unauthorized: Device session revoked" });
+      }
+
+      session.lastActiveAt = new Date();
+      await session.save();
+      req.deviceSession = session;
     }
     req.user = user; // Attach full user object to request
     next();
