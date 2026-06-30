@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 
-const SUPERADMIN_PHONE = "01822769722";
+const SUPERADMIN_PHONE = "01933329902";
 const SUPERADMIN_PASSWORD = "admin1234";
 
 export const ensureSuperAdmin = async () => {
@@ -28,7 +28,6 @@ export const ensureSuperAdmin = async () => {
 
     if (changed) {
       await existingAdmin.save();
-      console.log("Superadmin account verified and updated.");
     }
 
     return existingAdmin;
@@ -42,6 +41,5 @@ export const ensureSuperAdmin = async () => {
     status: "approved",
   });
 
-  console.log("Superadmin account created.");
   return superAdmin;
 };

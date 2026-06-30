@@ -34,7 +34,6 @@ class SocketService {
     this.setupMiddleware();
     this.setupEventHandlers();
     
-    console.log("Socket.IO initialized");
     return this.io;
   }
 
@@ -73,7 +72,6 @@ class SocketService {
   // Setup Socket.IO event handlers
   setupEventHandlers() {
     this.io.on("connection", (socket) => {
-      console.log(`User connected: ${socket.userName} (${socket.userId})`);
       
       this.handleConnection(socket);
       socket.on("disconnect", () => this.handleDisconnection(socket));
@@ -140,7 +138,6 @@ class SocketService {
       // Emit user offline status to relevant users
       this.emitUserStatus(userId, false);
 
-      console.log(`User disconnected: ${socket.userName} (${userId})`);
     } catch (error) {
       console.error("Error handling disconnection:", error);
     }

@@ -27,7 +27,6 @@ export const initializeSocket = (server) => {
   });
 
   io.on('connection', (socket) => {
-    console.log('User connected:', socket.userId);
 
     // Join a room with the user's ID for private messages
     socket.join(socket.userId);
@@ -37,14 +36,12 @@ export const initializeSocket = (server) => {
       try {
         // You can implement the logic to mark notification as read here
         // This will be handled by your existing markNotificationAsRead function
-        console.log('Notification marked as read:', notificationId);
       } catch (error) {
         console.error('Error marking notification as read:', error);
       }
     });
 
     socket.on('disconnect', () => {
-      console.log('User disconnected:', socket.userId);
     });
   });
 

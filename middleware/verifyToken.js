@@ -14,7 +14,6 @@ export const verifyToken = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.jwt_secret);
-    console.log('Decoded JWT:', decoded); // Debug log
     // Try both id and _id for compatibility
     let user = null;
     if (decoded.id) {
@@ -22,7 +21,6 @@ export const verifyToken = async (req, res, next) => {
     } else if (decoded._id) {
       user = await User.findById(decoded._id).select('-password');
     }
-    console.log('User found:', user); // Debug log
     if (!user) {
       return res.status(401).json({ message: `Unauthorized: User not found for id: ${decoded.id || decoded._id}` });
     }

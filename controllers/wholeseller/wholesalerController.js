@@ -8,6 +8,7 @@ import {
   applyPricingToSellPost,
   buildPricingBreakdown,
 } from "../../services/pricingService.js";
+import { verifyOtpToken } from "../../services/otpService.js";
 
 const parseQuantityNumber = (value) => {
   const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
@@ -119,12 +120,16 @@ export const updateWholesalerProfileImage = async (req, res) => {
 export const changeWholesalerPassword = async (req, res) => {
   try {
     const wholesalerId = req.user.id; // Extract user ID from token
-    const { oldPassword, newPassword } = req.body;
+    const { oldPassword, newPassword, otpToken } = req.body;
 
     // Find user
     const wholesaler = await User.findById(wholesalerId);
     if (!wholesaler) {
       return res.status(404).json({ message: "Wholesaler not found" });
+    }
+
+    if (!verifyOtpToken({ token: otpToken, phone: wholesaler.phone, purpose: "password-reset" })) {
+      return res.status(403).json({ message: "OTP verification is required" });
     }
 
     // Check if old password is correct
@@ -542,6 +547,10 @@ export const createBulkOrder = async (req, res) => {
       return res.status(400).json({
         message: "This post is not active",
       });
+    }
+
+    if (String(sellPost.seller?._id || sellPost.seller) === String(req.user._id || req.user.id)) {
+      return res.status(403).json({ message: "নিজের পণ্য নিজে কেনা যাবে না" });
     }
 
     if (quantity > sellPost.remainingQuantity) {

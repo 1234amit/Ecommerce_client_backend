@@ -1,3 +1,8 @@
 /node_modules/
 .env
 .vercel
+package-lock.json   
+.DS_Store
+.env.local
+.env.development
+.env.production

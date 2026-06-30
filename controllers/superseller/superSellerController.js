@@ -15,6 +15,7 @@ import {
   applyPricingToSellPost,
   buildPricingBreakdown,
 } from "../../services/pricingService.js";
+import { verifyOtpToken } from "../../services/otpService.js";
 
 const parseQuantityNumber = (value) => {
   const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
@@ -186,7 +187,7 @@ export const updateSupersalerProfileImage = async (req, res) => {
 export const changeSupersalerPassword = async (req, res) => {
   try {
     const supersalerId = req.user?.id;
-    const { oldPassword, newPassword } = req.body || {};
+    const { oldPassword, newPassword, otpToken } = req.body || {};
 
     if (!supersalerId) return res.status(401).json({ message: "Unauthorized" });
     if (typeof oldPassword !== "string" || typeof newPassword !== "string" || !oldPassword.trim() || !newPassword.trim())
@@ -196,6 +197,10 @@ export const changeSupersalerPassword = async (req, res) => {
 
     const supersaler = await User.findById(supersalerId).select("+password");
     if (!supersaler) return res.status(404).json({ message: "Supersaler not found" });
+
+    if (!verifyOtpToken({ token: otpToken, phone: supersaler.phone, purpose: "password-reset" })) {
+      return res.status(403).json({ message: "OTP verification is required" });
+    }
 
     const isMatch = await bcrypt.compare(oldPassword, supersaler.password);
     if (!isMatch) return res.status(400).json({ message: "Old password is incorrect" });
@@ -1109,7 +1114,6 @@ export const updateSupersalerOwnProduct = async (req, res) => {
         try {
           product.secondaryImages = JSON.parse(secondaryImages);
         } catch (err) {
-          console.log("secondaryImages parse error");
         }
       }
     }

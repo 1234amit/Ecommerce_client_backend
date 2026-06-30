@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import Product from "../../models/Product.js"; // Added import for Product
 import Category from "../../models/Category.js";
 import Review from "../../models/Review.js";
+import { verifyOtpToken } from "../../services/otpService.js";
 
 const getImageUrlFromRequest = (req) => {
   if (typeof req.body?.image === "string" && req.body.image.trim()) {
@@ -110,12 +111,16 @@ export const updateConsumerProfileImage = async (req, res) => {
 export const changePassword = async (req, res) => {
   try {
     const userId = req.user.id; // Extract user ID from token
-    const { oldPassword, newPassword } = req.body;
+    const { oldPassword, newPassword, otpToken } = req.body;
 
     // Find user
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!verifyOtpToken({ token: otpToken, phone: user.phone, purpose: "password-reset" })) {
+      return res.status(403).json({ message: "OTP verification is required" });
     }
 
     // Check if old password is correct
@@ -237,7 +242,6 @@ export const getProductsForConsumer = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
 
 
 

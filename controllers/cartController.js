@@ -1,4 +1,5 @@
 import Cart from "../models/Cart.js";
+import Product from "../models/Product.js";
 import { PROFIT_RATES, applyPricingToProduct } from "../services/pricingService.js";
 
 // POST /api/cart/add
@@ -7,6 +8,16 @@ export const addToCart = async (req, res) => {
   const { productId, quantity } = req.body;
 
   try {
+    const product = await Product.findById(productId).select("producer status addToSellPost");
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    if (String(product.producer) === String(userId)) {
+      return res.status(403).json({ message: "নিজের পণ্য নিজে কেনা যাবে না" });
+    }
+
     let cart = await Cart.findOne({ userId });
 
     if (!cart) {
@@ -46,12 +57,24 @@ export const getCart = async (req, res) => {
     if (!cart) return res.status(200).json({ items: [], message: 'Cart is empty' });
 
     const cartObject = cart.toObject();
-    cartObject.items = cartObject.items.map((item) => ({
-      ...item,
-      productId: item.productId
-        ? applyPricingToProduct(item.productId, PROFIT_RATES.retailToConsumer)
-        : item.productId,
-    }));
+    const validProductIds = new Set(
+      cartObject.items
+        .map((item) => item.productId?._id || item.productId)
+        .filter(Boolean)
+        .map(String),
+    );
+
+    if (validProductIds.size !== cart.items.length) {
+      cart.items = cart.items.filter((item) => validProductIds.has(String(item.productId)));
+      await cart.save();
+    }
+
+    cartObject.items = cartObject.items
+      .filter((item) => item.productId)
+      .map((item) => ({
+        ...item,
+        productId: applyPricingToProduct(item.productId, PROFIT_RATES.retailToConsumer),
+      }));
 
     res.status(200).json({ items: cartObject.items });
   } catch (error) {

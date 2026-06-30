@@ -148,8 +148,6 @@ import {
 //     params.append("product_profile", "general");
 
 //     // 🔥 DEBUG (VERY IMPORTANT)
-//     console.log("STORE ID:", process.env.SSL_STORE_ID);
-//     console.log("STORE PASS:", process.env.SSL_STORE_PASSWORD);
 
 //     // ✅ SSL REQUEST
 //     const response = await axios.post(
@@ -266,8 +264,6 @@ export const initCheckoutSSL = async (req, res) => {
     params.append("product_profile", "general");
 
     // 🔥 DEBUG (IMPORTANT)
-    console.log("STORE ID:", process.env.SSL_STORE_ID);
-    console.log("STORE PASS:", process.env.SSL_STORE_PASSWORD);
 
     // ✅ CALL SSL
     const response = await axios.post(

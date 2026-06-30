@@ -6,6 +6,7 @@ import { isAdminRole } from "../utils/roles.js";
 import crypto from "crypto";
 import { UAParser } from "ua-parser-js";
 import DeviceSession from "../models/DeviceSession.js";
+import { getPhoneLookupValues, verifyOtpToken } from "../services/otpService.js";
 
 dotenv.config();
 
@@ -85,7 +86,12 @@ export const registerUser = async (req, res) => {
       tradelicense,
       password,
       role,
+      otpToken,
     } = req.body;
+
+    if (!verifyOtpToken({ token: otpToken, phone, purpose: "register" })) {
+      return res.status(403).json({ message: "Phone OTP verification is required" });
+    }
 
     const rolesRequiringApproval = ["supersaler", "wholesaler", "producer"];
     const status = rolesRequiringApproval.includes(role) ? "pending" : "approved";
@@ -133,7 +139,11 @@ export const registerUser = async (req, res) => {
 
 export const registerConsumer = async (req, res) => {
   try {
-    const { name, phone, role = "consumer", password, email, nid, division, district, thana, address, tradelicense } = req.body;
+    const { name, phone, role = "consumer", password, email, nid, division, district, thana, address, tradelicense, otpToken } = req.body;
+
+    if (!verifyOtpToken({ token: otpToken, phone, purpose: "register" })) {
+      return res.status(403).json({ message: "Phone OTP verification is required" });
+    }
 
     // Ensure required fields for consumer
     if (role === "consumer" && (!name || !phone || !password)) {
@@ -204,7 +214,7 @@ export const registerConsumer = async (req, res) => {
 
 export const loginUser = async (req, res) => {
   try {
-    const { phone, password } = req.body;
+    const { phone, password, otpToken } = req.body;
 
     if (!phone || !password) {
       return res
@@ -228,6 +238,10 @@ export const loginUser = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid Phone or Password" });
+    }
+
+    if (isAdminRole(user.role) && !verifyOtpToken({ token: otpToken, phone, purpose: "login" })) {
+      return res.status(403).json({ message: "Admin OTP verification is required" });
     }
 
     // Update last login time
@@ -284,6 +298,33 @@ export const loginUser = async (req, res) => {
   }
 };
 
+export const resetPasswordWithOtp = async (req, res) => {
+  try {
+    const { phone, newPassword, otpToken } = req.body || {};
+
+    if (!phone || !newPassword) {
+      return res.status(400).json({ message: "Phone and new password are required" });
+    }
+
+    if (!verifyOtpToken({ token: otpToken, phone, purpose: "password-reset" })) {
+      return res.status(403).json({ message: "OTP verification is required" });
+    }
+
+    const user = await User.findOne({ phone: { $in: getPhoneLookupValues(phone) } });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    return res.json({ message: "Password reset successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 // export const logoutUser = async (req, res) => {
 //   try {
 //     const token = req.headers.authorization?.split(" ")[1];
@@ -316,7 +357,5 @@ export const logoutUser = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
-
 
 

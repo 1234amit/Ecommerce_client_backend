@@ -17,6 +17,7 @@ import {
   notifyOrderDecision,
   notifyProductDecision,
 } from "../../services/notificationService.js";
+import { verifyOtpToken } from "../../services/otpService.js";
 
 const validOrderStatuses = [
   "pending",
@@ -49,11 +50,6 @@ const toNumber = (value) => {
 const getImageUrlFromRequest = (req) => {
   if (typeof req.body?.image === "string" && req.body.image.trim()) {
     return req.body.image.trim();
-  }
-
-  if (req.file) {
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    return `${baseUrl}/${req.file.path}`;
   }
 
   return "";
@@ -862,12 +858,16 @@ export const deleteAdminCategory = async (req, res) => {
 export const changeAdminPassword = async (req, res) => {
   try {
     const adminId = req.user.id; // Extract user ID from token
-    const { oldPassword, newPassword } = req.body;
+    const { oldPassword, newPassword, otpToken } = req.body;
 
     // Find user
     const admin = await User.findById(adminId);
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
+    }
+
+    if (!verifyOtpToken({ token: otpToken, phone: admin.phone, purpose: "password-reset" })) {
+      return res.status(403).json({ message: "OTP verification is required" });
     }
 
     // Check if old password is correct

@@ -25,7 +25,6 @@ export const verifyTokenwholesaler = async (req, res, next) => {
       name: user.name,
     };
 
-    console.log("✅ FINAL USER:", req.user);
 
     next();
   } catch (error) {

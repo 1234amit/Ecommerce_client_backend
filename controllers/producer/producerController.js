@@ -3,6 +3,7 @@ import User from "../../models/User.js";
 import Product from "../../models/Product.js";
 import Notification from "../../models/Notification.js";
 import Category from "../../models/Category.js";
+import { verifyOtpToken } from "../../services/otpService.js";
 
 const getImageUrlFromRequest = (req) => {
   if (typeof req.body?.image === "string" && req.body.image.trim()) {
@@ -122,12 +123,16 @@ export const updateProducerProfileImage = async (req, res) => {
 export const changeProducerPassword = async (req, res) => {
   try {
     const producerId = req.user.id; // Extract user ID from token
-    const { oldPassword, newPassword } = req.body;
+    const { oldPassword, newPassword, otpToken } = req.body;
 
     // Find user
     const producer = await User.findById(producerId);
     if (!producer) {
       return res.status(404).json({ message: "Producer not found" });
+    }
+
+    if (!verifyOtpToken({ token: otpToken, phone: producer.phone, purpose: "password-reset" })) {
+      return res.status(403).json({ message: "OTP verification is required" });
     }
 
     // Check if old password is correct

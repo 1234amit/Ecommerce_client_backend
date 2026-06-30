@@ -58,6 +58,10 @@ export const addToCart = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
+    if (String(product.producer?._id || product.producer) === String(req.user._id)) {
+      return res.status(403).json({ message: "নিজের পণ্য নিজে কেনা যাবে না" });
+    }
+
     if (product.status !== "approved") {
       return res.status(400).json({ message: "Product not approved" });
     }
