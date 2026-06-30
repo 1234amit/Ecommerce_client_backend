@@ -8,10 +8,30 @@ import Payment from "../../models/Payment.js";
 import Cart from "../../models/Cart.js";
 import SupersalerBuyProductCart from "../../models/supersalerBuyProductCart.js";
 import mongoose from "mongoose";
+import {
+  DELIVERY_CHARGE,
+  PROFIT_RATES,
+  applyPricingToProduct,
+  applyPricingToSellPost,
+  buildPricingBreakdown,
+} from "../../services/pricingService.js";
 
 const parseQuantityNumber = (value) => {
   const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getImageUrlFromRequest = (req) => {
+  if (typeof req.body?.image === "string" && req.body.image.trim()) {
+    return req.body.image.trim();
+  }
+
+  if (req.file) {
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    return `${baseUrl}/${req.file.path}`;
+  }
+
+  return "";
 };
 
 const isAdminApprovedOrder = (order = {}) => {
@@ -111,12 +131,8 @@ export const updateSupersalerProfile = async (req, res) => {
     if (address) updateData.address = address;
     if (nid) updateData.nid = nid;
 
-    // Handle image upload if file is provided
-    if (req.file) {
-      // Create full URL for the image
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      updateData.image = `${baseUrl}/${req.file.path}`;
-    }
+    const imageUrl = getImageUrlFromRequest(req);
+    if (imageUrl) updateData.image = imageUrl;
 
     const updatedSupersaler = await User.findByIdAndUpdate(
       supersalerId,
@@ -142,13 +158,10 @@ export const updateSupersalerProfileImage = async (req, res) => {
   try {
     const supersalerId = req.user.id; // Extract user ID from token
 
-    if (!req.file) {
-      return res.status(400).json({ message: "No image file provided" });
+    const imageUrl = getImageUrlFromRequest(req);
+    if (!imageUrl) {
+      return res.status(400).json({ message: "No image provided" });
     }
-
-    // Create full URL for the image
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const imageUrl = `${baseUrl}/${req.file.path}`;
 
     const updatedSupersaler = await User.findByIdAndUpdate(
       supersalerId,
@@ -249,9 +262,13 @@ export const getApprovedProductsForSuperseller = async (req, res) => {
       { $sort: { createdAt: -1 } },
     ]);
 
+    const pricedProducts = products
+      .filter((product) => parseQuantityNumber(product.quantity) > 0)
+      .map((product) => applyPricingToProduct(product, PROFIT_RATES.producerBulkToSupersaler));
+
     res.json({
       message: "Approved products fetched successfully",
-      products: products.filter((product) => parseQuantityNumber(product.quantity) > 0),
+      products: pricedProducts,
     });
   } catch (error) {
     console.error("Error fetching approved products:", error);
@@ -339,17 +356,23 @@ export const supersalerCheckoutCOD = async (req, res) => {
         (Array.isArray(product.productImages) ? product.productImages[0] : null) ||
         "no-image";
 
-      const price = Number(product.price || 0);
       const quantity = Number(item.quantity || 0);
-      const totalPrice = price * quantity;
+      const pricing = buildPricingBreakdown({
+        basePrice: product.price || 0,
+        quantity,
+        ratePercent: PROFIT_RATES.producerBulkToSupersaler,
+      });
 
       return {
         productId: product._id,
         productName: productName,
         productImage: productImage,
-        price: price,
+        basePrice: pricing.basePrice,
+        profitRate: pricing.profitRate,
+        adminProfit: pricing.adminProfit,
+        price: pricing.finalPrice,
         quantity: quantity,
-        totalPrice: totalPrice,
+        totalPrice: pricing.subtotal,
       };
     });
 
@@ -357,6 +380,11 @@ export const supersalerCheckoutCOD = async (req, res) => {
     // 3) Calculate subtotal
     // ===========================
     const subtotal = orderItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const baseSubtotal = orderItems.reduce(
+      (sum, item) => sum + Number(item.basePrice || 0) * Number(item.quantity || 0),
+      0
+    );
+    const adminProfit = orderItems.reduce((sum, item) => sum + Number(item.adminProfit || 0), 0);
 
     // ===========================
     // 4) Create Order
@@ -364,9 +392,12 @@ export const supersalerCheckoutCOD = async (req, res) => {
     const order = await Order.create({
       userId: supersalerId,
       items: orderItems,
+      baseSubtotal,
+      adminProfit,
+      profitRate: PROFIT_RATES.producerBulkToSupersaler,
       subtotal: subtotal,
-      deliveryFee: 0,
-      totalAmount: subtotal,
+      deliveryFee: DELIVERY_CHARGE,
+      totalAmount: subtotal + DELIVERY_CHARGE,
       paymentMethod: "cash_on_delivery",
       paymentStatus: "pending",
       orderStatus: "pending",
@@ -768,7 +799,11 @@ export const getBulkPosts = async (req, res) => {
       .populate("seller", "name phone")
       .sort({ createdAt: -1 });
 
-    res.json({ message: "Bulk posts fetched", posts });
+    const pricedPosts = posts.map((post) =>
+      applyPricingToSellPost(post, PROFIT_RATES.supersalerBulkToWholesaler)
+    );
+
+    res.json({ message: "Bulk posts fetched", posts: pricedPosts });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -805,10 +840,14 @@ export const getBulkPostsForSupersaler = async (req, res) => {
       .populate("producer", "name phone district thana role")
       .sort({ createdAt: -1 });
 
+    const pricedPosts = posts.map((post) =>
+      applyPricingToSellPost(post, PROFIT_RATES.supersalerBulkToWholesaler)
+    );
+
     return res.json({
       message: "Bulk posts fetched successfully for supersaler",
-      totalFound: posts.length,
-      posts,
+      totalFound: pricedPosts.length,
+      posts: pricedPosts,
     });
   } catch (error) {
     return res.status(500).json({

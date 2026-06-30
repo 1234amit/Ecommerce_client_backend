@@ -6,6 +6,12 @@ import Order from "../../models/Order.js";
 // import Product from "../models/Product.js";
 import SellPost from "../../models/SellPost.js"; // ✅ ADD THIS
 import BulkOrder from "../../models/BulkOrder.js";
+import Category from "../../models/Category.js";
+import {
+  DELIVERY_CHARGE,
+  PROFIT_RATES,
+  calculateProfitPrice,
+} from "../../services/pricingService.js";
 
 const validOrderStatuses = [
   "pending",
@@ -34,6 +40,19 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const getImageUrlFromRequest = (req) => {
+  if (typeof req.body?.image === "string" && req.body.image.trim()) {
+    return req.body.image.trim();
+  }
+
+  if (req.file) {
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    return `${baseUrl}/${req.file.path}`;
+  }
+
+  return "";
+};
+
 const isPaidLikeStatus = (value) => {
   const normalized = String(value ?? "").trim().toLowerCase();
   return ["paid", "approved", "confirmed", "delivered", "completed"].includes(normalized);
@@ -42,6 +61,41 @@ const isPaidLikeStatus = (value) => {
 const isAdminCompletedOrderStatus = (value) => {
   const normalized = String(value ?? "").trim().toLowerCase();
   return ["confirmed", "delivered", "completed"].includes(normalized);
+};
+
+const getProductProfitRate = (product = {}) => {
+  const ownerRole = String(product.producer?.role || product.producerRole || "").toLowerCase();
+  const productType = String(product.productType || "").toLowerCase();
+
+  if (ownerRole === "producer" && productType === "bulk") {
+    return PROFIT_RATES.producerBulkToSupersaler;
+  }
+
+  return PROFIT_RATES.retailToConsumer;
+};
+
+const withAdminProductPricing = (product = {}) => {
+  const plain = typeof product.toObject === "function" ? product.toObject() : { ...product };
+  const profitRate = getProductProfitRate(plain);
+  const pricing = calculateProfitPrice(plain.price || 0, profitRate);
+
+  return {
+    ...plain,
+    basePrice: pricing.basePrice,
+    adminProfit: pricing.adminProfit,
+    profitRate: pricing.profitRate,
+    finalPrice: pricing.finalPrice,
+    deliveryFee: DELIVERY_CHARGE,
+    finalTotalWithDelivery: pricing.finalPrice + DELIVERY_CHARGE,
+    pricingBreakdown: {
+      basePrice: pricing.basePrice,
+      adminProfit: pricing.adminProfit,
+      profitRate: pricing.profitRate,
+      finalPrice: pricing.finalPrice,
+      deliveryFee: DELIVERY_CHARGE,
+      totalWithDelivery: pricing.finalPrice + DELIVERY_CHARGE,
+    },
+  };
 };
 
 const createOwnedProductForBuyer = async ({
@@ -398,12 +452,8 @@ export const updateAdminProfile = async (req, res) => {
     if (address) updateData.address = address;
     if (nid) updateData.nid = nid;
 
-    // Handle image upload if file is provided
-    if (req.file) {
-      // Create full URL for the image
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      updateData.image = `${baseUrl}/${req.file.path}`;
-    }
+    const imageUrl = getImageUrlFromRequest(req);
+    if (imageUrl) updateData.image = imageUrl;
 
     const updatedAdmin = await User.findByIdAndUpdate(
       adminId,
@@ -426,13 +476,10 @@ export const updateAdminProfileImage = async (req, res) => {
   try {
     const adminId = req.user.id; // Extract user ID from token
 
-    if (!req.file) {
-      return res.status(400).json({ message: "No image file provided" });
+    const imageUrl = getImageUrlFromRequest(req);
+    if (!imageUrl) {
+      return res.status(400).json({ message: "No image provided" });
     }
-
-    // Create full URL for the image
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const imageUrl = `${baseUrl}/${req.file.path}`;
 
     const updatedAdmin = await User.findByIdAndUpdate(
       adminId,
@@ -450,6 +497,249 @@ export const updateAdminProfileImage = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const getAdminCategories = async (req, res) => {
+  try {
+    const categories = await Category.find()
+      .select("name icon createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      message: "Categories fetched successfully",
+      count: categories.length,
+      categories,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const getAdminProfitReport = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    const normalOrders = await Order.find({
+      isActive: true,
+      $or: [
+        { paymentStatus: "paid" },
+        { orderStatus: { $in: ["confirmed", "delivered", "completed"] } },
+        { adminActionStatus: "confirmed" },
+      ],
+    })
+      .populate("userId", "name email phone role")
+      .sort({ createdAt: -1 })
+      .lean({ virtuals: true });
+
+    const bulkOrders = await BulkOrder.find({
+      $or: [
+        { paymentStatus: "paid" },
+        { orderStatus: { $in: ["approved", "completed"] } },
+        { adminActionStatus: "confirmed" },
+      ],
+    })
+      .populate("wholesaler", "name email phone role")
+      .populate("producer", "name email phone role")
+      .populate("product", "productName image")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const normalRows = normalOrders.map((order) => {
+      const adminProfit = Number(order.adminProfit || 0);
+      const subtotal = Number(order.subtotal || 0);
+      const deliveryFee = Number(order.deliveryFee || 0);
+
+      return {
+        _id: order._id,
+        source: "order",
+        orderId: order.orderId,
+        buyer: order.userId,
+        buyerRole: order.userId?.role || "consumer",
+        baseSubtotal: Number(order.baseSubtotal || subtotal - adminProfit || 0),
+        adminProfit,
+        deliveryFee,
+        subtotal,
+        totalAmount: Number(order.totalAmount || subtotal + deliveryFee || 0),
+        paymentStatus: order.paymentStatus,
+        orderStatus: order.orderStatus,
+        createdAt: order.createdAt,
+      };
+    });
+
+    const bulkRows = bulkOrders.map((order) => {
+      const subtotal = Number(order.subtotal || Number(order.unitPrice || 0) * Number(order.quantity || 0));
+      const adminProfit = Number(order.adminProfit || 0);
+      const deliveryFee = Number(order.deliveryFee || 0);
+
+      return {
+        _id: order._id,
+        source: "bulkOrder",
+        orderId: order.orderId,
+        buyer: order.wholesaler,
+        buyerRole: "wholesaler",
+        seller: order.producer,
+        product: order.product,
+        baseSubtotal: Number(order.baseUnitPrice || 0) * Number(order.quantity || 0),
+        adminProfit,
+        deliveryFee,
+        subtotal,
+        totalAmount: Number(order.totalAmount || subtotal + deliveryFee || 0),
+        paymentStatus: order.paymentStatus,
+        orderStatus: order.orderStatus,
+        createdAt: order.createdAt,
+      };
+    });
+
+    const rows = [...normalRows, ...bulkRows].sort(
+      (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+    );
+
+    const summary = rows.reduce(
+      (acc, row) => {
+        acc.totalOrders += 1;
+        acc.baseSubtotal += Number(row.baseSubtotal || 0);
+        acc.adminProfit += Number(row.adminProfit || 0);
+        acc.deliveryFee += Number(row.deliveryFee || 0);
+        acc.totalAmount += Number(row.totalAmount || 0);
+        return acc;
+      },
+      {
+        totalOrders: 0,
+        baseSubtotal: 0,
+        adminProfit: 0,
+        deliveryFee: 0,
+        totalAmount: 0,
+      }
+    );
+
+    return res.status(200).json({
+      message: "Admin profit report fetched successfully",
+      summary,
+      profits: rows,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const createAdminCategory = async (req, res) => {
+  try {
+    const name = String(req.body?.name || "").trim();
+    const icon = String(req.body?.icon || "").trim();
+
+    if (!name) {
+      return res.status(400).json({ message: "Category name is required" });
+    }
+
+    if (!icon) {
+      return res.status(400).json({ message: "Category icon is required" });
+    }
+
+    const existing = await Category.findOne({
+      name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+    });
+
+    if (existing) {
+      return res.status(409).json({ message: "Category already exists" });
+    }
+
+    const category = await Category.create({ name, icon });
+
+    return res.status(201).json({
+      message: "Category created successfully",
+      category,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const updateAdminCategory = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    const name = String(req.body?.name || "").trim();
+    const icon = String(req.body?.icon || "").trim();
+
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (icon) updateData.icon = icon;
+
+    if (!Object.keys(updateData).length) {
+      return res.status(400).json({ message: "No category data provided" });
+    }
+
+    if (name) {
+      const existing = await Category.findOne({
+        _id: { $ne: categoryId },
+        name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+      });
+
+      if (existing) {
+        return res.status(409).json({ message: "Category already exists" });
+      }
+    }
+
+    const category = await Category.findByIdAndUpdate(
+      categoryId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!category) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    return res.status(200).json({
+      message: "Category updated successfully",
+      category,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const deleteAdminCategory = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    const usedByProduct = await Product.exists({ category: categoryId });
+
+    if (usedByProduct) {
+      return res.status(409).json({
+        message: "Category is used by products and cannot be deleted",
+      });
+    }
+
+    const category = await Category.findByIdAndDelete(categoryId);
+
+    if (!category) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    return res.status(200).json({
+      message: "Category deleted successfully",
+      category,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };
 
@@ -1251,13 +1541,13 @@ export const getPendingProducts = async (req, res) => {
     }
 
     const products = await Product.find({ status: "pending" })
-      .populate("producer", "name email phone")
+      .populate("producer", "name email phone role")
       .populate("category", "name")
       .sort({ createdAt: -1 });
 
     res.json({
       message: "Pending products fetched successfully",
-      products,
+      products: products.map(withAdminProductPricing),
     });
   } catch (error) {
     console.error("Error fetching pending products:", error);
@@ -1274,13 +1564,13 @@ export const getApprovedProducts = async (req, res) => {
     }
 
     const products = await Product.find({ status: "approved" })
-      .populate("producer", "name email phone")
+      .populate("producer", "name email phone role")
       .populate("category", "name")
       .sort({ createdAt: -1 });
 
     res.json({
       message: "Approved products fetched successfully",
-      products,
+      products: products.map(withAdminProductPricing),
     });
   } catch (error) {
     console.error("Error fetching approved products:", error);
@@ -1297,13 +1587,13 @@ export const getRejectedProducts = async (req, res) => {
     }
 
     const products = await Product.find({ status: "rejected" })
-      .populate("producer", "name email phone")
+      .populate("producer", "name email phone role")
       .populate("category", "name")
       .sort({ createdAt: -1 });
 
     res.json({
       message: "Rejected products fetched successfully",
-      products,
+      products: products.map(withAdminProductPricing),
     });
   } catch (error) {
     console.error("Error fetching rejected products:", error);
@@ -1545,7 +1835,7 @@ export const getProductDetailsByAdmin = async (req, res) => {
     const { productId } = req.params;
 
     const product = await Product.findById(productId)
-      .populate("producer", "name email phone")
+      .populate("producer", "name email phone role")
       .populate("category", "name");
 
     if (!product) {
@@ -1554,7 +1844,7 @@ export const getProductDetailsByAdmin = async (req, res) => {
 
     res.json({
       message: "Product details fetched successfully",
-      product,
+      product: withAdminProductPricing(product),
     });
   } catch (error) {
     console.error("Error fetching product details:", error);
@@ -1571,13 +1861,13 @@ export const getAllProductsAdmin = async (req, res) => {
     }
 
     const products = await Product.find()
-      .populate("producer", "name email phone")
+      .populate("producer", "name email phone role")
       .populate("category", "name")
       .sort({ createdAt: -1 });
 
     res.json({
       message: "All products fetched successfully",
-      products,
+      products: products.map(withAdminProductPricing),
     });
   } catch (error) {
     console.error("Error fetching all products:", error);

@@ -1,5 +1,6 @@
 import Chat from "../models/Chats/Chat.js";
 import Message from "../models/Chats/Message.js";
+import { isAdminRole } from "../utils/roles.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 
@@ -16,9 +17,9 @@ class ChatService {
   }
 
   // Find or create chat between users
-  static async findOrCreateChat(participantIds, chatType, userType) {
+  static async findOrCreateChat(participantIds, chatType, userType, context = {}) {
     try {
-      return await Chat.findOrCreateChat(participantIds, chatType, userType);
+      return await Chat.findOrCreateChat(participantIds, chatType, userType, context);
     } catch (error) {
       throw new Error(`Failed to find or create chat: ${error.message}`);
     }
@@ -207,7 +208,7 @@ class ChatService {
       if (!chat) return false;
 
       // Admin can access any chat
-      if (userRole === "admin") return true;
+      if (isAdminRole(userRole)) return true;
 
       // User must be participant
       return chat.participants.includes(userId);
@@ -258,7 +259,7 @@ class ChatService {
       let query = { isActive: true };
 
       // Add user-specific filters
-      if (userRole === "admin") {
+      if (isAdminRole(userRole)) {
         // Admin can see all chats or assigned chats
         if (filters.assignedToMe) {
           query.assignedAdmin = userId;

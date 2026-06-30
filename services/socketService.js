@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Chat from "../models/Chats/Chat.js";
 import Message from "../models/Chats/Message.js";
+import { isAdminRole } from "../utils/roles.js";
 
 class SocketService {
   constructor() {
@@ -26,6 +27,7 @@ class SocketService {
     this.setupEventHandlers();
     
     console.log("Socket.IO initialized");
+    return this.io;
   }
 
   // Setup Socket.IO middleware for authentication
@@ -39,7 +41,7 @@ class SocketService {
         }
 
         // Verify JWT token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.jwt_secret || process.env.JWT_SECRET);
         
         // Get user from database
         const user = await User.findById(decoded.id).select("_id name role status");
@@ -92,7 +94,7 @@ class SocketService {
       socket.join(`user_${userId}`);
 
       // If user is admin, join admin room
-      if (socket.userRole === "admin") {
+      if (isAdminRole(socket.userRole)) {
         socket.join("admin_room");
       }
 
@@ -146,7 +148,7 @@ class SocketService {
 
         // Verify user is participant in chat
         const chat = await Chat.findById(chatId);
-        if (!chat || !chat.participants.includes(userId)) {
+        if (!chat || (!chat.participants.includes(userId) && !isAdminRole(socket.userRole))) {
           socket.emit("error", { message: "Access denied to this chat" });
           return;
         }
@@ -314,6 +316,7 @@ class SocketService {
 
   // Send message to specific user
   sendToUser(userId, event, data) {
+    if (!this.io) return;
     const socketId = this.userSockets.get(userId);
     if (socketId) {
       this.io.to(socketId).emit(event, data);
@@ -322,16 +325,19 @@ class SocketService {
 
   // Send message to chat room
   sendToChat(chatId, event, data) {
+    if (!this.io) return;
     this.io.to(`chat_${chatId}`).emit(event, data);
   }
 
   // Send message to admin room
   sendToAdmins(event, data) {
+    if (!this.io) return;
     this.io.to("admin_room").emit(event, data);
   }
 
   // Broadcast to all connected users
   broadcast(event, data) {
+    if (!this.io) return;
     this.io.emit(event, data);
   }
 

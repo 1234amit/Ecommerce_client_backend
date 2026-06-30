@@ -162,6 +162,7 @@ messageSchema.index({ isRead: 1 });
 messageSchema.index({ isDeleted: 1 });
 messageSchema.index({ messageType: 1 });
 messageSchema.index({ isSystemMessage: 1 });
+messageSchema.index({ senderRole: 1, isRead: 1, isDeleted: 1, chatId: 1 });
 
 // Pre-save middleware to set delivered status and sender role
 messageSchema.pre("save", async function (next) {

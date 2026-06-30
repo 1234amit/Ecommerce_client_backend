@@ -65,6 +65,16 @@ const chatSchema = new mongoose.Schema(
       enum: ["sales", "support", "technical", "billing", "general", "complaint", "feedback"],
       default: "general",
     },
+    contextType: {
+      type: String,
+      enum: ["general", "support", "product", "order"],
+      default: "general",
+    },
+    contextId: {
+      type: String,
+      trim: true,
+      default: "general",
+    },
     // Escalation tracking
     escalationLevel: {
       type: Number,
@@ -120,6 +130,7 @@ chatSchema.index({ assignedAdmin: 1 });
 chatSchema.index({ status: 1 });
 chatSchema.index({ priority: 1 });
 chatSchema.index({ category: 1 });
+chatSchema.index({ contextType: 1, contextId: 1 });
 chatSchema.index({ lastMessageTime: -1 });
 chatSchema.index({ createdAt: -1 });
 
@@ -178,12 +189,22 @@ chatSchema.methods.updateMessageCount = function () {
 };
 
 // Static method to find or create chat between users
-chatSchema.statics.findOrCreateChat = async function (participantIds, chatType = "user_to_admin", userType = "consumer") {
+chatSchema.statics.findOrCreateChat = async function (
+  participantIds,
+  chatType = "user_to_admin",
+  userType = "consumer",
+  context = {}
+) {
+  const contextType = context.contextType || "general";
+  const contextId = context.contextId || "general";
+
   // Check if chat already exists
   let chat = await this.findOne({
     participants: { $all: participantIds, $size: participantIds.length },
     chatType,
     userType,
+    contextType,
+    contextId,
     isActive: true,
   });
 
@@ -193,6 +214,8 @@ chatSchema.statics.findOrCreateChat = async function (participantIds, chatType =
       participants: participantIds,
       chatType,
       userType,
+      contextType,
+      contextId,
     });
     await chat.save();
   }

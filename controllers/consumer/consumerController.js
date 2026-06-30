@@ -4,6 +4,19 @@ import Product from "../../models/Product.js"; // Added import for Product
 import Category from "../../models/Category.js";
 import Review from "../../models/Review.js";
 
+const getImageUrlFromRequest = (req) => {
+  if (typeof req.body?.image === "string" && req.body.image.trim()) {
+    return req.body.image.trim();
+  }
+
+  if (req.file) {
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    return `${baseUrl}/${req.file.path}`;
+  }
+
+  return "";
+};
+
 // Get User Profile (Logged-in User)
 export const getOwnProfile = async (req, res) => {
   try {
@@ -44,12 +57,8 @@ export const updateOwnProfile = async (req, res) => {
     if (address) updateData.address = address;
     if (nid) updateData.nid = nid; // ✅ Fix: Ensure `nid` is included in the update
 
-    // Handle image upload if file is provided
-    if (req.file) {
-      // Create full URL for the image
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      updateData.image = `${baseUrl}/${req.file.path}`;
-    }
+    const imageUrl = getImageUrlFromRequest(req);
+    if (imageUrl) updateData.image = imageUrl;
 
     // Find and update user profile
     const updatedUser = await User.findByIdAndUpdate(
@@ -73,13 +82,10 @@ export const updateConsumerProfileImage = async (req, res) => {
   try {
     const userId = req.user.id; // Extract user ID from token
 
-    if (!req.file) {
-      return res.status(400).json({ message: "No image file provided" });
+    const imageUrl = getImageUrlFromRequest(req);
+    if (!imageUrl) {
+      return res.status(400).json({ message: "No image provided" });
     }
-
-    // Create full URL for the image
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const imageUrl = `${baseUrl}/${req.file.path}`;
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
@@ -231,7 +237,6 @@ export const getProductsForConsumer = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
 
 
 

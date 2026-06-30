@@ -2,6 +2,7 @@ import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import { isAdminRole } from "../utils/roles.js";
 
 dotenv.config();
 
@@ -237,7 +238,12 @@ export const loginUser = async (req, res) => {
       { expiresIn: "30d" }
     );
 
-    res.json({ message: "Login successful", token, user });
+    res.json({
+      message: "Login successful",
+      token,
+      user,
+      admin: isAdminRole(user.role) ? user : undefined,
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -275,7 +281,6 @@ export const logoutUser = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
 
 
 

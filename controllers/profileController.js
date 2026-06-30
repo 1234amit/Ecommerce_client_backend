@@ -1,5 +1,18 @@
 import User from "../models/User.js";
 
+const getImageUrlFromRequest = (req) => {
+  if (typeof req.body?.image === "string" && req.body.image.trim()) {
+    return req.body.image.trim();
+  }
+
+  if (req.file) {
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    return `${baseUrl}/${req.file.path}`;
+  }
+
+  return "";
+};
+
 // Unified profile endpoint for all user types
 export const getProfile = async (req, res) => {
   try {
@@ -31,12 +44,8 @@ export const updateProfile = async (req, res) => {
     if (address) updateData.address = address;
     if (nid) updateData.nid = nid;
 
-    // Handle image upload if file is provided
-    if (req.file) {
-      // Create full URL for the image
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      updateData.image = `${baseUrl}/${req.file.path}`;
-    }
+    const imageUrl = getImageUrlFromRequest(req);
+    if (imageUrl) updateData.image = imageUrl;
 
     // Find and update user profile
     const updatedUser = await User.findByIdAndUpdate(
@@ -60,13 +69,10 @@ export const updateProfileImage = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    if (!req.file) {
-      return res.status(400).json({ message: "No image file provided" });
+    const imageUrl = getImageUrlFromRequest(req);
+    if (!imageUrl) {
+      return res.status(400).json({ message: "No image provided" });
     }
-
-    // Create full URL for the image
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const imageUrl = `${baseUrl}/${req.file.path}`;
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,

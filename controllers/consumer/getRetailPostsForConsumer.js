@@ -1,4 +1,5 @@
 import SellPost from "../../models/SellPost.js";
+import { PROFIT_RATES, applyPricingToSellPost } from "../../services/pricingService.js";
 
 // export const getRetailPostsForConsumer = async (req, res) => {
 //   try {
@@ -68,10 +69,14 @@ export const getRetailPostsForConsumer = async (req, res) => {
       )
       .sort({ createdAt: -1 });
 
+    const pricedPosts = posts.map((post) =>
+      applyPricingToSellPost(post, PROFIT_RATES.retailToConsumer)
+    );
+
     return res.status(200).json({
       message: "Retail posts fetched successfully",
-      total: posts.length,
-      posts,
+      total: pricedPosts.length,
+      posts: pricedPosts,
     });
   } catch (error) {
     console.error(error);
@@ -126,9 +131,11 @@ export const getSingleRetailProductForConsumer = async (req, res) => {
       });
     }
 
+    const pricedPost = applyPricingToSellPost(post, PROFIT_RATES.retailToConsumer);
+
     return res.status(200).json({
       message: "Retail product fetched successfully",
-      post,
+      post: pricedPost,
     });
   } catch (error) {
     console.error(

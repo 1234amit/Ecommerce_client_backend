@@ -2,10 +2,29 @@ import bcrypt from "bcryptjs";
 import User from "../../models/User.js";
 import Product from "../../models/Product.js";
 import SellPost from "../../models/SellPost.js";
+import {
+  DELIVERY_CHARGE,
+  PROFIT_RATES,
+  applyPricingToSellPost,
+  buildPricingBreakdown,
+} from "../../services/pricingService.js";
 
 const parseQuantityNumber = (value) => {
   const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getImageUrlFromRequest = (req) => {
+  if (typeof req.body?.image === "string" && req.body.image.trim()) {
+    return req.body.image.trim();
+  }
+
+  if (req.file) {
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    return `${baseUrl}/${req.file.path}`;
+  }
+
+  return "";
 };
 
 // Get Wholesaler Profile
@@ -45,12 +64,8 @@ export const updateWholesalerProfile = async (req, res) => {
     if (address) updateData.address = address;
     if (nid) updateData.nid = nid;
 
-    // Handle image upload if file is provided
-    if (req.file) {
-      // Create full URL for the image
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      updateData.image = `${baseUrl}/${req.file.path}`;
-    }
+    const imageUrl = getImageUrlFromRequest(req);
+    if (imageUrl) updateData.image = imageUrl;
 
     const updatedWholesaler = await User.findByIdAndUpdate(
       wholesalerId,
@@ -76,13 +91,10 @@ export const updateWholesalerProfileImage = async (req, res) => {
   try {
     const wholesalerId = req.user.id; // Extract user ID from token
 
-    if (!req.file) {
-      return res.status(400).json({ message: "No image file provided" });
+    const imageUrl = getImageUrlFromRequest(req);
+    if (!imageUrl) {
+      return res.status(400).json({ message: "No image provided" });
     }
-
-    // Create full URL for the image
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const imageUrl = `${baseUrl}/${req.file.path}`;
 
     const updatedWholesaler = await User.findByIdAndUpdate(
       wholesalerId,
@@ -356,10 +368,14 @@ export const getBulkPostsForWholesaler = async (req, res) => {
     // ==========================
     // Response
     // ==========================
+    const pricedPosts = posts.map((post) =>
+      applyPricingToSellPost(post, PROFIT_RATES.supersalerBulkToWholesaler)
+    );
+
     return res.status(200).json({
       message: "Bulk posts fetched successfully",
-      totalFound: posts.length,
-      posts,
+      totalFound: pricedPosts.length,
+      posts: pricedPosts,
     });
   } catch (error) {
     console.error("getBulkPostsForWholesaler error:", error);
@@ -443,9 +459,11 @@ export const getBulkPostDetailsForWholesaler = async (req, res) => {
       });
     }
 
+    const pricedPost = applyPricingToSellPost(post, PROFIT_RATES.supersalerBulkToWholesaler);
+
     return res.status(200).json({
       message: "Bulk post details fetched successfully",
-      post,
+      post: pricedPost,
     });
   } catch (error) {
     console.error("Error fetching bulk post details:", error);
@@ -533,18 +551,25 @@ export const createBulkOrder = async (req, res) => {
     }
 
     // ✅ FIX HERE (IMPORTANT)
-    const unitPrice =
+    const baseUnitPrice =
       sellPost.pricePerUnit ||
       sellPost.unitPrice ||
+      sellPost.sellingPricePerKg ||
       sellPost.product?.price;
 
-    if (!unitPrice) {
+    if (!baseUnitPrice) {
       return res.status(400).json({
         message: "Unit price not found in sell post",
       });
     }
 
-    const totalAmount = Number(unitPrice) * Number(quantity);
+    const pricing = buildPricingBreakdown({
+      basePrice: baseUnitPrice,
+      quantity,
+      ratePercent: PROFIT_RATES.supersalerBulkToWholesaler,
+    });
+    const unitPrice = pricing.finalPrice;
+    const totalAmount = pricing.totalAmount;
 
     if (isNaN(totalAmount)) {
       return res.status(400).json({
@@ -559,6 +584,11 @@ export const createBulkOrder = async (req, res) => {
       sellPost: sellPost._id,
       product: sellPost.product._id,
       quantity,
+      baseUnitPrice: pricing.basePrice,
+      profitRate: pricing.profitRate,
+      adminProfit: pricing.adminProfit,
+      subtotal: pricing.subtotal,
+      deliveryFee: pricing.deliveryFee,
       unitPrice,
       totalAmount,
       notes,

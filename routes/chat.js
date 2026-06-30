@@ -18,7 +18,9 @@ import {
   escalateChat,
   getChatStats,
   changeChatPriority,
-  changeChatCategory
+  changeChatCategory,
+  deleteChatByAdmin,
+  getAdminUnreadCount
 } from "../controllers/Chats/ChatController.js";
 
 const router = express.Router();
@@ -46,6 +48,8 @@ router.put("/:chatId/close", closeChat);
 
 // Admin-only routes
 router.get("/admin-chats", verifyToken, getAdminChats);
+router.get("/admin-unread-count", verifyToken, getAdminUnreadCount);
+router.delete("/:chatId", verifyToken, deleteChatByAdmin);
 router.put("/:chatId/assign", verifyToken, assignChatToAdmin);
 router.put("/:chatId/resolve", verifyToken, resolveChat);
 router.put("/:chatId/escalate", verifyToken, escalateChat);

@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import { isAdminRole } from "../../utils/roles.js";
 
 dotenv.config();
 
@@ -21,8 +22,11 @@ export const verifyToken = (req, res, next) => {
 
 // Middleware to check if user is an admin
 export const verifyAdmin = (req, res, next) => {
-  if (req.user.role !== "admin") {
+  if (!isAdminRole(req.user.role)) {
     return res.status(403).json({ message: "Access Denied: Admins only" });
   }
+
+  req.user.authRole = req.user.role;
+  req.user.role = "admin";
   next();
 };

@@ -5,9 +5,14 @@ import {
 } from "../../middleware/admin/verifyAdmin.js";
 import {
   changeAdminPassword,
+  createAdminCategory,
+  deleteAdminCategory,
   getAdminProfile,
+  getAdminCategories,
+  getAdminProfitReport,
   updateAdminProfile,
   updateAdminProfileImage,
+  updateAdminCategory,
   getAllUsers,
   getUserById,
   deleteUserById,
@@ -106,6 +111,12 @@ router.put("/profile-image", verifyToken, verifyAdmin, upload.single('image'), u
 
 // Change Admin Password
 router.put("/change-password", verifyToken, verifyAdmin, changeAdminPassword);
+
+router.get("/profits", verifyToken, verifyAdmin, getAdminProfitReport);
+router.get("/categories", verifyToken, verifyAdmin, getAdminCategories);
+router.post("/categories", verifyToken, verifyAdmin, createAdminCategory);
+router.put("/categories/:categoryId", verifyToken, verifyAdmin, updateAdminCategory);
+router.delete("/categories/:categoryId", verifyToken, verifyAdmin, deleteAdminCategory);
 
 // Get all users (Admin Only)
 router.get("/users", verifyToken, verifyAdmin, getAllUsers);

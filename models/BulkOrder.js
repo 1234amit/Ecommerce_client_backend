@@ -42,6 +42,31 @@ const bulkOrderSchema = new mongoose.Schema(
       required: true,
     },
 
+    baseUnitPrice: {
+      type: Number,
+      default: 0,
+    },
+
+    profitRate: {
+      type: Number,
+      default: 0,
+    },
+
+    adminProfit: {
+      type: Number,
+      default: 0,
+    },
+
+    subtotal: {
+      type: Number,
+      default: 0,
+    },
+
+    deliveryFee: {
+      type: Number,
+      default: 0,
+    },
+
     totalAmount: {
       type: Number,
       required: true,

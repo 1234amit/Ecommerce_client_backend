@@ -2,6 +2,7 @@
 import mongoose from "mongoose";
 import Product from "../../models/Product.js";
 import Category from "../../models/Category.js";
+import { PROFIT_RATES, applyPricingToProduct } from "../../services/pricingService.js";
 
 const { Types: { ObjectId } } = mongoose;
 const isOid = (v) => ObjectId.isValid(String(v));
@@ -105,9 +106,9 @@ export const listProducts = async (req, res) => {
       .limit(Number(limit))
       .lean();
 
-    const items = (await hydrateCategories(docs)).filter(
-      (product) => parseQuantityNumber(product.quantity) > 0
-    );
+    const items = (await hydrateCategories(docs))
+      .filter((product) => parseQuantityNumber(product.quantity) > 0)
+      .map((product) => applyPricingToProduct(product, PROFIT_RATES.retailToConsumer));
     const total = await Product.countDocuments(filters);
 
     res.json({
@@ -150,7 +151,8 @@ export const getProductPublic = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    const [item] = await hydrateCategories([doc]);
+    const [hydratedItem] = await hydrateCategories([doc]);
+    const item = applyPricingToProduct(hydratedItem, PROFIT_RATES.retailToConsumer);
     res.json({ message: "Product fetched", product: item });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
@@ -185,9 +187,9 @@ export const listByProducer = async (req, res) => {
       .limit(Number(limit))
       .lean();
 
-    const items = (await hydrateCategories(docs)).filter(
-      (product) => parseQuantityNumber(product.quantity) > 0
-    );
+    const items = (await hydrateCategories(docs))
+      .filter((product) => parseQuantityNumber(product.quantity) > 0)
+      .map((product) => applyPricingToProduct(product, PROFIT_RATES.retailToConsumer));
     const total = await Product.countDocuments(filters);
 
     res.json({

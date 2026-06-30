@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import { isAdminRole } from "../utils/roles.js";
 
 // Consumer Dashboard
 export const consumerDashboard = async (req, res) => {
@@ -63,7 +64,7 @@ export const producerDashboard = async (req, res) => {
 // Admin Dashboard
 export const adminDashboard = async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
+    if (!isAdminRole(req.user.role)) {
       return res.status(403).json({ message: "Access Denied: Admins only" });
     }
 

@@ -3,6 +3,11 @@ import Cart from '../models/Cart.js';
 import User from '../models/User.js';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
+import {
+    DELIVERY_CHARGE,
+    PROFIT_RATES,
+    buildPricingBreakdown,
+} from '../services/pricingService.js';
 
 const isAdminApprovedOrder = (order = {}) => {
     const orderStatus = String(order.orderStatus || '').toLowerCase();
@@ -158,7 +163,12 @@ class OrderController {
                 if (!Number.isFinite(unitPriceParsed) || unitPriceParsed < 0) {
                     return res.status(400).json({ success: false, message: `Invalid price for ${productName}` });
                 }
-                const unitPrice = Number(unitPriceParsed);
+                const pricing = buildPricingBreakdown({
+                    basePrice: unitPriceParsed,
+                    quantity: qty,
+                    ratePercent: PROFIT_RATES.retailToConsumer,
+                });
+                const unitPrice = pricing.finalPrice;
 
                 // Only enforce stock if quantity is numeric in DB
                 if (Number.isFinite(available)) {
@@ -174,13 +184,16 @@ class OrderController {
                     ? product.secondaryImages[0]
                     : (product.image || '');
 
-                const itemTotal = unitPrice * qty;
+                const itemTotal = pricing.subtotal;
                 subtotal += itemTotal;
 
                 processedItems.push({
                     productId: product._id,   // store as ObjectId
                     productName,
                     productImage,
+                    basePrice: pricing.basePrice,
+                    profitRate: pricing.profitRate,
+                    adminProfit: pricing.adminProfit,
                     price: unitPrice,
                     quantity: qty,
                     totalPrice: itemTotal,
@@ -188,8 +201,16 @@ class OrderController {
             }
 
             // Totals
-            const numericDeliveryFee = Number(deliveryFee) || 0;
+            const numericDeliveryFee = DELIVERY_CHARGE;
             const totalAmount = subtotal + numericDeliveryFee;
+            const baseSubtotal = processedItems.reduce(
+                (sum, item) => sum + Number(item.basePrice || 0) * Number(item.quantity || 0),
+                0
+            );
+            const adminProfit = processedItems.reduce(
+                (sum, item) => sum + Number(item.adminProfit || 0),
+                0
+            );
 
             // Create order
             const orderId = await generateOrderId();
@@ -197,6 +218,9 @@ class OrderController {
                 orderId,
                 userId,
                 items: processedItems,
+                baseSubtotal,
+                adminProfit,
+                profitRate: PROFIT_RATES.retailToConsumer,
                 subtotal,
                 deliveryFee: numericDeliveryFee,
                 totalAmount,

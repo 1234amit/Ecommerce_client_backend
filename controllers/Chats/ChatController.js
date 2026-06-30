@@ -2,6 +2,63 @@ import Chat from "../../models/Chats/Chat.js";
 import Message from "../../models/Chats/Message.js";
 import User from "../../models/User.js";
 import Notification from "../../models/Notification.js";
+import socketService from "../../services/socketService.js";
+import { ADMIN_ROLES, isAdminRole } from "../../utils/roles.js";
+
+const normalizeChatContext = (body = {}) => {
+  const rawType = String(body.contextType || "").trim().toLowerCase();
+  const contextType = ["support", "product", "order"].includes(rawType)
+    ? rawType
+    : "general";
+  const rawContextId =
+    body.contextId ||
+    body.productId ||
+    body.orderId ||
+    body.orderMongoId ||
+    "";
+  const contextId = String(rawContextId || "").trim() || (contextType === "support" ? "general-support" : "general");
+
+  return {
+    contextType,
+    contextId,
+  };
+};
+
+const findDefaultAdminId = async () => {
+  const admin = await User.findOne({
+    role: { $in: ADMIN_ROLES },
+    status: { $ne: "rejected" },
+  }).select("_id");
+
+  return admin?._id || null;
+};
+
+const getAdminUnreadMatch = () => ({
+  senderRole: { $nin: ADMIN_ROLES },
+  isRead: false,
+  isDeleted: false,
+});
+
+const getAdminUnreadByChat = async (chatIds = []) => {
+  if (!chatIds.length) return new Map();
+
+  const rows = await Message.aggregate([
+    {
+      $match: {
+        ...getAdminUnreadMatch(),
+        chatId: { $in: chatIds },
+      },
+    },
+    {
+      $group: {
+        _id: "$chatId",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  return new Map(rows.map((row) => [row._id.toString(), row.count]));
+};
 
 // Create or get existing chat between user and admin
 export const createOrGetChat = async (req, res) => {
@@ -9,6 +66,7 @@ export const createOrGetChat = async (req, res) => {
     const { adminId, subject, priority, category, chatType = "user_to_admin" } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
+    const { contextType, contextId } = normalizeChatContext(req.body);
 
     // Validate user role (only specific user types can chat with admin)
     const allowedRoles = ["consumer", "producer", "wholesaler", "supersaler"];
@@ -18,7 +76,11 @@ export const createOrGetChat = async (req, res) => {
 
     // Validate admin if adminId is provided
     if (adminId) {
-      const admin = await User.findOne({ _id: adminId, role: "admin", status: "approved" });
+      const admin = await User.findOne({
+        _id: adminId,
+        role: { $in: ADMIN_ROLES },
+        status: "approved",
+      });
       if (!admin) {
         return res.status(404).json({ message: "Admin not found or not approved" });
       }
@@ -35,6 +97,8 @@ export const createOrGetChat = async (req, res) => {
       participants: { $all: [userId], $size: 1 },
       chatType,
       userType: userRole,
+      contextType,
+      contextId,
       isActive: true,
     });
 
@@ -44,10 +108,12 @@ export const createOrGetChat = async (req, res) => {
         participants: [userId],
         chatType,
         userType: userRole,
-        subject: subject || `Support request from ${userRole}`,
+        subject: subject || `${contextType === "product" ? "Product" : contextType === "order" ? "Order" : "Support"} request from ${userRole}`,
         priority: priority || "medium",
         category: category || "general",
-        tags: [userRole, chatType],
+        contextType,
+        contextId,
+        tags: [userRole, chatType, contextType, contextId],
       });
       await chat.save();
 
@@ -56,7 +122,7 @@ export const createOrGetChat = async (req, res) => {
         chatId: chat._id,
         sender: userId,
         receiver: userId, // Set receiver to sender for system messages to avoid validation issues
-        content: `Chat started by ${userRole} user`,
+        content: `Chat started by ${userRole} user for ${contextType}: ${contextId}`,
         messageType: "system",
         isSystemMessage: true,
         systemMessageType: "user_joined",
@@ -76,7 +142,7 @@ export const createOrGetChat = async (req, res) => {
           sender: userId,
           type: "new_message",
           title: "New Support Request",
-          message: `New ${userRole} support request: ${subject || 'General inquiry'}`,
+          message: `New ${userRole} ${contextType} request: ${subject || contextId}`,
           chatId: chat._id,
           messageId: systemMessage._id,
           priority: priority === "urgent" ? "urgent" : "normal"
@@ -104,6 +170,8 @@ export const sendMessage = async (req, res) => {
     const { chatId, content, messageType = "text", replyTo, mediaUrl, mediaThumbnail, mediaSize, mediaDuration, location, fileName, fileType } = req.body;
     const senderId = req.user.id;
     const senderRole = req.user.role;
+    const senderIsAdmin = isAdminRole(senderRole);
+    const messageSenderRole = senderIsAdmin ? "admin" : senderRole;
 
     // Validate chat
     const chat = await Chat.findById(chatId);
@@ -112,7 +180,7 @@ export const sendMessage = async (req, res) => {
     }
 
     // Check if user is participant or admin
-    if (!chat.participants.includes(senderId) && senderRole !== "admin") {
+    if (!chat.participants.includes(senderId) && !senderIsAdmin) {
       return res.status(403).json({ message: "You are not a participant in this chat" });
     }
 
@@ -123,17 +191,20 @@ export const sendMessage = async (req, res) => {
     //6-24-26
     //Get receiver (other participant or admin)
     let receiverId;
-    if (senderRole === "admin") {
+    if (senderIsAdmin) {
       // Admin is sending message, receiver is the user
       receiverId = chat.participants.find(id => id.toString() !== senderId.toString());
     } else {
-      // User is sending message, receiver is admin (if assigned) or the user themselves for now
-      receiverId = chat.assignedAdmin || senderId;
+      // User messages are routed to the assigned admin, or the first available admin.
+      receiverId = chat.assignedAdmin || await findDefaultAdminId() || senderId;
+      if (!chat.assignedAdmin && receiverId.toString() !== senderId.toString()) {
+        chat.assignedAdmin = receiverId;
+      }
     }
 
     // let receiverId = null;
 
-// if (senderRole === "admin") {
+// if (isAdminRole(senderRole)) {
 //   receiverId = chat.participants.find(
 //     id => id.toString() !== senderId.toString()
 //   );
@@ -161,8 +232,8 @@ export const sendMessage = async (req, res) => {
       location,
       fileName,
       fileType,
-      senderRole,
-      priority: senderRole === "admin" ? "important" : "normal",
+      senderRole: messageSenderRole,
+      priority: senderIsAdmin ? "important" : "normal",
     });
 
     await message.save();
@@ -201,6 +272,18 @@ export const sendMessage = async (req, res) => {
       });
     }
 
+    socketService.sendToChat(chat._id.toString(), "new_message", {
+      chatId: chat._id.toString(),
+      message,
+    });
+
+    if (!senderIsAdmin) {
+      socketService.sendToAdmins("admin_unread_changed", {
+        chatId: chat._id.toString(),
+        increment: 1,
+      });
+    }
+
     res.json({
       success: true,
       message: "Message sent successfully",
@@ -226,7 +309,7 @@ export const getChatMessages = async (req, res) => {
     }
 
     // Check if user is participant or admin
-    if (!chat.participants.includes(userId) && req.user.role !== "admin") {
+    if (!chat.participants.includes(userId) && !isAdminRole(req.user.role)) {
       return res.status(403).json({ message: "You are not a participant in this chat" });
     }
 
@@ -247,23 +330,36 @@ export const getChatMessages = async (req, res) => {
         { path: "replyTo", select: "content messageType" }
       ]);
 
-    // Mark messages as read
-    await Message.updateMany(
-      {
-        chatId,
-        receiver: userId,
-        isRead: false,
-        isDeleted: false,
-      },
-      {
-        isRead: true,
-        readAt: new Date(),
-      }
-    );
+    const readQuery =
+      isAdminRole(req.user.role)
+        ? {
+            chatId,
+            senderRole: { $nin: ADMIN_ROLES },
+            isRead: false,
+            isDeleted: false,
+          }
+        : {
+            chatId,
+            receiver: userId,
+            isRead: false,
+            isDeleted: false,
+          };
+
+    const readResult = await Message.updateMany(readQuery, {
+      isRead: true,
+      readAt: new Date(),
+    });
 
     // Reset unread count for this user
     chat.unreadCount.set(userId.toString(), 0);
     await chat.save();
+
+    if (isAdminRole(req.user.role) && readResult.modifiedCount > 0) {
+      socketService.sendToAdmins("admin_unread_changed", {
+        chatId: chat._id.toString(),
+        decrement: readResult.modifiedCount,
+      });
+    }
 
     // Get total count
     const totalMessages = await Message.countDocuments({
@@ -296,7 +392,7 @@ export const getUserChats = async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role;
-    const { page = 1, limit = 20, status, category } = req.query;
+    const { page = 1, limit = 20, status, category, contextType, contextId } = req.query;
 
     // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -309,6 +405,8 @@ export const getUserChats = async (req, res) => {
 
     if (status) query.status = status;
     if (category) query.category = category;
+    if (contextType) query.contextType = contextType;
+    if (contextId) query.contextId = contextId;
 
     // Get chats where user is participant
     const chats = await Chat.find(query)
@@ -342,6 +440,8 @@ export const getUserChats = async (req, res) => {
         priority: chat.priority,
         status: chat.status,
         category: chat.category,
+        contextType: chat.contextType,
+        contextId: chat.contextId,
         assignedAdmin: chat.assignedAdmin,
         startedAt: chat.startedAt,
         messageCount: chat.messageCount,
@@ -375,11 +475,11 @@ export const getAdminChats = async (req, res) => {
     const adminId = req.user.id;
     
     // Check if user is admin
-    if (req.user.role !== "admin") {
+    if (!isAdminRole(req.user.role)) {
       return res.status(403).json({ message: "Access denied. Admin role required." });
     }
 
-    const { page = 1, limit = 20, status, priority, userType, category } = req.query;
+    const { page = 1, limit = 20, status, priority, userType, category, contextType, contextId } = req.query;
 
     // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -394,6 +494,8 @@ export const getAdminChats = async (req, res) => {
     if (priority) query.priority = priority;
     if (userType) query.userType = userType;
     if (category) query.category = category;
+    if (contextType) query.contextType = contextType;
+    if (contextId) query.contextId = contextId;
 
     // Admin should be able to see every user-to-admin conversation.
     const chats = await Chat.find(query)
@@ -409,10 +511,12 @@ export const getAdminChats = async (req, res) => {
     // Get total count
     const totalChats = await Chat.countDocuments(query);
 
+    const unreadByChat = await getAdminUnreadByChat(chats.map((chat) => chat._id));
+
     // Format chat data
     const formattedChats = chats.map(chat => {
       const user = chat.participants.find(
-        participant => participant.role !== "admin"
+        participant => !isAdminRole(participant.role)
       );
       
       return {
@@ -421,11 +525,13 @@ export const getAdminChats = async (req, res) => {
         userType: chat.userType,
         lastMessage: chat.lastMessage,
         lastMessageTime: chat.lastMessageTime,
-        unreadCount: chat.unreadCount.get(adminId.toString()) || 0,
+        unreadCount: unreadByChat.get(chat._id.toString()) || chat.unreadCount.get(adminId.toString()) || 0,
         subject: chat.subject,
         priority: chat.priority,
         status: chat.status,
         category: chat.category,
+        contextType: chat.contextType,
+        contextId: chat.contextId,
         assignedAdmin: chat.assignedAdmin,
         startedAt: chat.startedAt,
         messageCount: chat.messageCount,
@@ -454,6 +560,99 @@ export const getAdminChats = async (req, res) => {
   }
 };
 
+export const getAdminUnreadCount = async (req, res) => {
+  try {
+    if (!isAdminRole(req.user.role)) {
+      return res.status(403).json({ message: "Access denied. Admin role required." });
+    }
+
+    const [summary] = await Message.aggregate([
+      { $match: getAdminUnreadMatch() },
+      {
+        $lookup: {
+          from: "chats",
+          localField: "chatId",
+          foreignField: "_id",
+          as: "chat",
+        },
+      },
+      { $unwind: "$chat" },
+      {
+        $match: {
+          "chat.chatType": "user_to_admin",
+          "chat.isActive": true,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalUnread: { $sum: 1 },
+          chatCount: { $addToSet: "$chatId" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          totalUnread: 1,
+          unreadChats: { $size: "$chatCount" },
+        },
+      },
+    ]);
+
+    return res.json({
+      success: true,
+      data: summary || { totalUnread: 0, unreadChats: 0 },
+    });
+  } catch (error) {
+    console.error("Error in getAdminUnreadCount:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const deleteChatByAdmin = async (req, res) => {
+  try {
+    if (!isAdminRole(req.user.role)) {
+      return res.status(403).json({ message: "Access denied. Admin role required." });
+    }
+
+    const { chatId } = req.params;
+    const chat = await Chat.findById(chatId);
+
+    if (!chat) {
+      return res.status(404).json({ message: "Chat not found" });
+    }
+
+    chat.isActive = false;
+    chat.status = "closed";
+    chat.closedAt = new Date();
+    await chat.save();
+
+    await Message.updateMany(
+      { chatId: chat._id, isDeleted: false },
+      {
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: req.user.id,
+      },
+    );
+
+    socketService.sendToChat(chat._id.toString(), "chat_deleted", {
+      chatId: chat._id.toString(),
+    });
+    socketService.sendToAdmins("chat_deleted", {
+      chatId: chat._id.toString(),
+    });
+
+    return res.json({
+      success: true,
+      message: "Chat deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error in deleteChatByAdmin:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 // Assign chat to admin
 export const assignChatToAdmin = async (req, res) => {
   try {
@@ -461,7 +660,7 @@ export const assignChatToAdmin = async (req, res) => {
     const adminId = req.user.id;
 
     // Check if user is admin
-    if (req.user.role !== "admin") {
+    if (!isAdminRole(req.user.role)) {
       return res.status(403).json({ message: "Access denied. Admin role required." });
     }
 
@@ -531,7 +730,7 @@ export const resolveChat = async (req, res) => {
     const adminId = req.user.id;
 
     // Check if user is admin
-    if (req.user.role !== "admin") {
+    if (!isAdminRole(req.user.role)) {
       return res.status(403).json({ message: "Access denied. Admin role required." });
     }
 
@@ -602,7 +801,7 @@ export const escalateChat = async (req, res) => {
     const adminId = req.user.id;
 
     // Check if user is admin
-    if (req.user.role !== "admin") {
+    if (!isAdminRole(req.user.role)) {
       return res.status(403).json({ message: "Access denied. Admin role required." });
     }
 
@@ -678,7 +877,7 @@ export const closeChat = async (req, res) => {
     }
 
     // Check if user is participant or admin
-    if (!chat.participants.includes(userId) && req.user.role !== "admin") {
+    if (!chat.participants.includes(userId) && !isAdminRole(req.user.role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -694,7 +893,7 @@ export const closeChat = async (req, res) => {
       messageType: "system",
       isSystemMessage: true,
       systemMessageType: "chat_closed",
-      senderRole: req.user.role,
+      senderRole: isAdminRole(req.user.role) ? "admin" : req.user.role,
     });
     await systemMessage.save();
 
@@ -743,7 +942,7 @@ export const deleteMessage = async (req, res) => {
     }
 
     // Check if user is sender or admin
-    if (message.sender.toString() !== userId && req.user.role !== "admin") {
+    if (message.sender.toString() !== userId && !isAdminRole(req.user.role)) {
       return res.status(403).json({ message: "You can only delete your own messages" });
     }
 
@@ -866,7 +1065,7 @@ export const removeReaction = async (req, res) => {
 export const getChatStats = async (req, res) => {
   try {
     // Check if user is admin
-    if (req.user.role !== "admin") {
+    if (!isAdminRole(req.user.role)) {
       return res.status(403).json({ message: "Access denied. Admin role required." });
     }
 
@@ -911,7 +1110,7 @@ export const changeChatPriority = async (req, res) => {
     const adminId = req.user.id;
 
     // Check if user is admin
-    if (req.user.role !== "admin") {
+    if (!isAdminRole(req.user.role)) {
       return res.status(403).json({ message: "Access denied. Admin role required." });
     }
 
@@ -967,7 +1166,7 @@ export const changeChatCategory = async (req, res) => {
     const adminId = req.user.id;
 
     // Check if user is admin
-    if (req.user.role !== "admin") {
+    if (!isAdminRole(req.user.role)) {
       return res.status(403).json({ message: "Access denied. Admin role required." });
     }
 

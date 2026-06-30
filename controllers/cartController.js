@@ -1,4 +1,5 @@
 import Cart from "../models/Cart.js";
+import { PROFIT_RATES, applyPricingToProduct } from "../services/pricingService.js";
 
 // POST /api/cart/add
 export const addToCart = async (req, res) => {
@@ -44,7 +45,15 @@ export const getCart = async (req, res) => {
     const cart = await Cart.findOne({ userId }).populate("items.productId");
     if (!cart) return res.status(200).json({ items: [], message: 'Cart is empty' });
 
-    res.status(200).json({ items: cart.items });
+    const cartObject = cart.toObject();
+    cartObject.items = cartObject.items.map((item) => ({
+      ...item,
+      productId: item.productId
+        ? applyPricingToProduct(item.productId, PROFIT_RATES.retailToConsumer)
+        : item.productId,
+    }));
+
+    res.status(200).json({ items: cartObject.items });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching cart', error: error.message });
   }
@@ -114,4 +123,3 @@ export const updateQuantityInCart = async (req, res) => {
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 };
-

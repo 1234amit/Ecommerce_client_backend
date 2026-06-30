@@ -13,9 +13,7 @@ import wholesalerRoutes from "./routes/wholeseller/wholesalerRoutes.js";
 import WishListRoutes from "./routes/WishListRoutes.js";
 import cors from "cors";
 import helmet from "helmet";
-import { Server } from "socket.io";
 import { createServer } from "http";
-import { initializeSocket } from './config/socket.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import profileRoutes from "./routes/profileRoutes.js";
@@ -26,18 +24,21 @@ import productPublicRoutes from "./routes/producer/productPublicRoutes.js";
 import reviewsRoutes from "./routes/reviewsRoutes.js";
 import faqRoutes from "./routes/faqRoutes.js";
 import chat from "./routes/chat.js";
+import { ensureSuperAdmin } from "./services/superAdminSeed.js";
+import socketService from "./services/socketService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config();
-connectDB();
+await connectDB();
+await ensureSuperAdmin();
 
 const app = express();
 const httpServer = createServer(app);
 
 // Initialize Socket.IO
-const io = initializeSocket(httpServer);
+const io = socketService.initialize(httpServer);
 app.set('io', io);
 
 // Middleware

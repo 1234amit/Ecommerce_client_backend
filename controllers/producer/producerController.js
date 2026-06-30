@@ -4,6 +4,35 @@ import Product from "../../models/Product.js";
 import Notification from "../../models/Notification.js";
 import Category from "../../models/Category.js";
 
+const getImageUrlFromRequest = (req) => {
+  if (typeof req.body?.image === "string" && req.body.image.trim()) {
+    return req.body.image.trim();
+  }
+
+  if (req.file) {
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    return `${baseUrl}/${req.file.path}`;
+  }
+
+  return "";
+};
+
+const normalizeImageList = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((item) => String(item));
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.map((item) => String(item)) : [value];
+    } catch (_) {
+      return [value];
+    }
+  }
+
+  return [];
+};
+
 // Get Producer Profile
 export const getProducerProfile = async (req, res) => {
   try {
@@ -38,12 +67,8 @@ export const updateProducerProfile = async (req, res) => {
     if (address) updateData.address = address;
     if (nid) updateData.nid = nid;
 
-    // Handle image upload if file is provided
-    if (req.file) {
-      // Create full URL for the image
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      updateData.image = `${baseUrl}/${req.file.path}`;
-    }
+    const imageUrl = getImageUrlFromRequest(req);
+    if (imageUrl) updateData.image = imageUrl;
 
     const updatedProducer = await User.findByIdAndUpdate(
       producerId,
@@ -69,13 +94,10 @@ export const updateProducerProfileImage = async (req, res) => {
   try {
     const producerId = req.user.id; // Extract user ID from token
 
-    if (!req.file) {
-      return res.status(400).json({ message: "No image file provided" });
+    const imageUrl = getImageUrlFromRequest(req);
+    if (!imageUrl) {
+      return res.status(400).json({ message: "No image provided" });
     }
-
-    // Create full URL for the image
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const imageUrl = `${baseUrl}/${req.file.path}`;
 
     const updatedProducer = await User.findByIdAndUpdate(
       producerId,
@@ -431,6 +453,8 @@ export const addProduct = async (req, res) => {
       description,
       category,
       addToSellPost,
+      image,
+      secondaryImages,
     } = req.body;
 
     // Main image
@@ -454,7 +478,9 @@ export const addProduct = async (req, res) => {
       });
     }
 
-    if (!imageFile) {
+    const mainImage = image || (imageFile ? imageFile.path.replace(/\\/g, "/") : "");
+
+    if (!mainImage) {
       return res.status(400).json({
         message: "Product image is required",
       });
@@ -500,17 +526,14 @@ export const addProduct = async (req, res) => {
       });
     }
 
-    // Store relative path only
-    const imagePath = imageFile.path.replace(/\\/g, "/");
-
-    const secondaryImagePaths = secondaryImageFiles.map((file) =>
-      file.path.replace(/\\/g, "/")
-    );
+    const secondaryImagePaths = normalizeImageList(secondaryImages).length
+      ? normalizeImageList(secondaryImages)
+      : secondaryImageFiles.map((file) => file.path.replace(/\\/g, "/"));
 
     const newProduct = new Product({
       producer: producerId,
 
-      image: imagePath,
+      image: mainImage,
       secondaryImages: secondaryImagePaths,
 
       productName: String(productName),

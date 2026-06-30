@@ -79,6 +79,11 @@ import axios from "axios";
 import SupersalerBuyProductCart from "../../models/supersalerBuyProductCart.js";
 import Product from "../../models/Product.js";
 import Payment from "../../models/Payment.js";
+import {
+  DELIVERY_CHARGE,
+  PROFIT_RATES,
+  buildPricingBreakdown,
+} from "../../services/pricingService.js";
 
 
 // export const initCheckoutSSL = async (req, res) => {
@@ -193,12 +198,25 @@ export const initCheckoutSSL = async (req, res) => {
       return res.status(400).json({ message: "Cart is empty" });
     }
 
-    // ✅ calculate total
-    let totalAmount = 0;
+    // ✅ calculate backend-controlled total
+    let baseSubtotal = 0;
+    let adminProfit = 0;
+    let subtotal = 0;
 
     cart.items.forEach((item) => {
-      totalAmount += item.product.pricePerKg * item.quantity;
+      const basePrice = item.product.pricePerKg || item.product.price || 0;
+      const pricing = buildPricingBreakdown({
+        basePrice,
+        quantity: item.quantity,
+        ratePercent: PROFIT_RATES.producerBulkToSupersaler,
+      });
+
+      baseSubtotal += pricing.baseSubtotal;
+      adminProfit += pricing.adminProfit;
+      subtotal += pricing.subtotal;
     });
+
+    const totalAmount = subtotal + DELIVERY_CHARGE;
 
     // ✅ transaction id
     // const tran_id = "TXN_" + Date.now();
@@ -211,6 +229,7 @@ export const initCheckoutSSL = async (req, res) => {
       tran_id: tran_id,
       amount: totalAmount,
       status: "pending",
+      notes: `Base: ${baseSubtotal}, Admin profit: ${adminProfit}, Delivery: ${DELIVERY_CHARGE}`,
     });
 
     // ✅ SSL FORM DATA
@@ -267,6 +286,9 @@ export const initCheckoutSSL = async (req, res) => {
       gateway: response.data,
       tran_id,
       totalAmount,
+      baseSubtotal,
+      adminProfit,
+      deliveryFee: DELIVERY_CHARGE,
     });
   } catch (error) {
     return res.status(500).json({

@@ -2,6 +2,7 @@ import Product from "../../models/Product.js";
 import Wallet from "../../models/Wallet.js";
 import Transaction from "../../models/Transaction.js";
 import SupersalerBuyProductCart from "../../models/supersalerBuyProductCart.js";
+import { PROFIT_RATES, applyPricingToProduct } from "../../services/pricingService.js";
 
 const parseQuantityNumber = (value) => {
   const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
@@ -164,9 +165,17 @@ export const getCart = async (req, res) => {
       });
     }
 
+    const cartObject = cart.toObject();
+    cartObject.items = cartObject.items.map((item) => ({
+      ...item,
+      product: item.product
+        ? applyPricingToProduct(item.product, PROFIT_RATES.producerBulkToSupersaler)
+        : item.product,
+    }));
+
     return res.json({
       message: "Cart fetched successfully",
-      cart,
+      cart: cartObject,
     });
   } catch (error) {
     return res.status(500).json({
