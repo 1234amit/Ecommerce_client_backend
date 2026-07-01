@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import Admin from "../../models/Admin.js";
+import User from "../../models/User.js";
 import { isAdminRole } from "../../utils/roles.js";
 import DeviceSession from "../../models/DeviceSession.js";
 
@@ -15,10 +17,23 @@ export const verifyToken = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.jwt_secret);
     const userId = decoded.id || decoded._id;
+    let account =
+      decoded.authModel === "Admin"
+        ? await Admin.findById(userId).select("-password")
+        : await User.findById(userId).select("-password");
+
+    if (!account && decoded.authModel !== "Admin") {
+      account = await Admin.findById(userId).select("-password");
+    }
+
+    if (!account) {
+      return res.status(401).json({ message: "Unauthorized: Account not found" });
+    }
+
     req.user = {
-      ...decoded,
-      id: userId,
-      _id: userId,
+      ...account.toObject(),
+      id: String(account._id),
+      authModel: account.constructor.modelName,
     };
 
     if (decoded.role === "superadmin") {

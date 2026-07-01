@@ -5,6 +5,6 @@ import { createFAQ, getAllFAQs } from '../controllers/faqController.js';
 const router = express.Router();
 
 router.post('/create', verifyToken, createFAQ);
-router.get('/', verifyToken, getAllFAQs);
+router.get('/', getAllFAQs);
 
 export default router;

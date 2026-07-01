@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import Admin from "../models/Admin.js";
 import User from "../models/User.js";
 
 const SUPERADMIN_PHONE = process.env.SUPERADMIN_PHONE;
@@ -9,7 +10,7 @@ export const ensureSuperAdmin = async () => {
     return null;
   }
 
-  const existingAdmin = await User.findOne({ phone: SUPERADMIN_PHONE }).select("+password");
+  const existingAdmin = await Admin.findOne({ phone: SUPERADMIN_PHONE }).select("+password");
 
   if (existingAdmin) {
     let changed = false;
@@ -37,9 +38,19 @@ export const ensureSuperAdmin = async () => {
     return existingAdmin;
   }
 
-  const superAdmin = await User.create({
-    name: "Super Admin",
+  const legacyAdmin = await User.findOne({ phone: SUPERADMIN_PHONE }).select("+password");
+
+  const superAdmin = await Admin.create({
+    name: legacyAdmin?.name || "Super Admin",
     phone: SUPERADMIN_PHONE,
+    email: legacyAdmin?.email || undefined,
+    nid: legacyAdmin?.nid || undefined,
+    division: legacyAdmin?.division || undefined,
+    district: legacyAdmin?.district || undefined,
+    thana: legacyAdmin?.thana || undefined,
+    address: legacyAdmin?.address || undefined,
+    tradelicense: legacyAdmin?.tradelicense || undefined,
+    image: legacyAdmin?.image || null,
     password: SUPERADMIN_PASSWORD,
     role: "superadmin",
     status: "approved",

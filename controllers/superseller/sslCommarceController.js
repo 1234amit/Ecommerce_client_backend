@@ -83,6 +83,7 @@ import {
   DELIVERY_CHARGE,
   PROFIT_RATES,
   buildPricingBreakdown,
+  getEffectiveProfitRate,
 } from "../../services/pricingService.js";
 
 
@@ -206,7 +207,7 @@ export const initCheckoutSSL = async (req, res) => {
       const pricing = buildPricingBreakdown({
         basePrice,
         quantity: item.quantity,
-        ratePercent: PROFIT_RATES.producerBulkToSupersaler,
+        ratePercent: getEffectiveProfitRate(item.product, PROFIT_RATES.producerBulkToSupersaler),
       });
 
       baseSubtotal += pricing.baseSubtotal;

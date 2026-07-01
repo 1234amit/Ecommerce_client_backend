@@ -169,13 +169,25 @@ export const getCart = async (req, res) => {
       });
     }
 
+    const validProductIds = new Set(
+      cart.items
+        .map((item) => item.product?._id || item.product)
+        .filter(Boolean)
+        .map(String),
+    );
+
+    if (validProductIds.size !== cart.items.length) {
+      cart.items = cart.items.filter((item) => validProductIds.has(String(item.product)));
+      await cart.save();
+    }
+
     const cartObject = cart.toObject();
-    cartObject.items = cartObject.items.map((item) => ({
-      ...item,
-      product: item.product
-        ? applyPricingToProduct(item.product, PROFIT_RATES.producerBulkToSupersaler)
-        : item.product,
-    }));
+    cartObject.items = cartObject.items
+      .filter((item) => item.product)
+      .map((item) => ({
+        ...item,
+        product: applyPricingToProduct(item.product, PROFIT_RATES.producerBulkToSupersaler),
+      }));
 
     return res.json({
       message: "Cart fetched successfully",

@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import User from "../../models/User.js";
 import Product from "../../models/Product.js";
+import { deleteProductWithCascade } from "../../services/productCascadeService.js";
 import Notification from "../../models/Notification.js";
 import Category from "../../models/Category.js";
 import { verifyOtpToken } from "../../services/otpService.js";
@@ -759,11 +760,11 @@ export const deleteProductById = async (req, res) => {
       });
     }
 
-    // Delete the product
-    await Product.findByIdAndDelete(productId);
+    const deletion = await deleteProductWithCascade(product);
 
     res.json({
-      message: "Product deleted successfully"
+      message: "Product deleted successfully",
+      cleanup: deletion?.cleanup || {},
     });
   } catch (error) {
     res.status(500).json({ 

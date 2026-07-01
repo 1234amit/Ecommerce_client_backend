@@ -7,6 +7,7 @@ import {
     DELIVERY_CHARGE,
     PROFIT_RATES,
     buildPricingBreakdown,
+    getEffectiveProfitRate,
 } from '../services/pricingService.js';
 
 const isAdminApprovedOrder = (order = {}) => {
@@ -138,7 +139,7 @@ class OrderController {
 
                 // Fetch only fields your DB stores
                 const product = await Product.findById(productId)
-                    .select('productName quantity unit price image secondaryImages addToSellPost status')
+                    .select('productName quantity unit price image secondaryImages addToSellPost status adminProfitRate')
                     .lean();
 
                 if (!product) {
@@ -166,7 +167,7 @@ class OrderController {
                 const pricing = buildPricingBreakdown({
                     basePrice: unitPriceParsed,
                     quantity: qty,
-                    ratePercent: PROFIT_RATES.retailToConsumer,
+                    ratePercent: getEffectiveProfitRate(product, PROFIT_RATES.retailToConsumer),
                 });
                 const unitPrice = pricing.finalPrice;
 
@@ -220,7 +221,7 @@ class OrderController {
                 items: processedItems,
                 baseSubtotal,
                 adminProfit,
-                profitRate: PROFIT_RATES.retailToConsumer,
+                profitRate: processedItems[0]?.profitRate || PROFIT_RATES.retailToConsumer,
                 subtotal,
                 deliveryFee: numericDeliveryFee,
                 totalAmount,

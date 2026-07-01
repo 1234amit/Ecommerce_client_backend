@@ -14,6 +14,20 @@ const deviceSessionSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
+    deviceKey: {
+      type: String,
+      default: "",
+      index: true,
+    },
+    legacyDeviceKey: {
+      type: String,
+      default: "",
+      index: true,
+    },
+    clientDeviceId: {
+      type: String,
+      default: "",
+    },
     deviceName: {
       type: String,
       default: "Unknown device",
@@ -34,6 +48,18 @@ const deviceSessionSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    platform: {
+      type: String,
+      default: "",
+    },
+    architecture: {
+      type: String,
+      default: "",
+    },
+    screen: {
+      type: String,
+      default: "",
+    },
     lastActiveAt: {
       type: Date,
       default: Date.now,
@@ -47,6 +73,8 @@ const deviceSessionSchema = new mongoose.Schema(
 );
 
 deviceSessionSchema.index({ user: 1, revokedAt: 1, lastActiveAt: -1 });
+deviceSessionSchema.index({ user: 1, deviceKey: 1, revokedAt: 1 });
+deviceSessionSchema.index({ user: 1, legacyDeviceKey: 1, revokedAt: 1 });
 
 const DeviceSession = mongoose.model("DeviceSession", deviceSessionSchema);
 export default DeviceSession;

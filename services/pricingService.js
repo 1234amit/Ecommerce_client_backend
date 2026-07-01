@@ -45,9 +45,20 @@ export const buildPricingBreakdown = ({ basePrice, quantity = 1, ratePercent }) 
   };
 };
 
+export const getEffectiveProfitRate = (source = {}, fallbackRate = 0) => {
+  const plain = typeof source.toObject === "function" ? source.toObject() : source;
+  const value =
+    plain?.adminProfitRate ??
+    plain?.product?.adminProfitRate ??
+    plain?.productId?.adminProfitRate ??
+    fallbackRate;
+  const parsed = toNumber(value);
+  return Number.isFinite(parsed) ? parsed : toNumber(fallbackRate);
+};
+
 export const applyPricingToProduct = (product = {}, ratePercent) => {
   const source = typeof product.toObject === "function" ? product.toObject() : { ...product };
-  const effectiveRate = source.adminProfitRate ?? ratePercent;
+  const effectiveRate = getEffectiveProfitRate(source, ratePercent);
   const pricing = calculateProfitPrice(source.price ?? source.pricePerKg ?? 0, effectiveRate);
 
   return {
@@ -63,13 +74,14 @@ export const applyPricingToProduct = (product = {}, ratePercent) => {
 
 export const applyPricingToSellPost = (post = {}, ratePercent) => {
   const source = typeof post.toObject === "function" ? post.toObject() : { ...post };
+  const effectiveRate = getEffectiveProfitRate(source, ratePercent);
   const basePrice =
     source.sellingPricePerKg ??
     source.pricePerUnit ??
     source.unitPrice ??
     source.product?.price ??
     0;
-  const pricing = calculateProfitPrice(basePrice, ratePercent);
+  const pricing = calculateProfitPrice(basePrice, effectiveRate);
 
   return {
     ...source,

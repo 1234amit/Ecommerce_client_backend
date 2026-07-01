@@ -1,4 +1,5 @@
 import User from "../../models/User.js";
+import Admin from "../../models/Admin.js";
 import bcrypt from "bcryptjs";
 import Product from "../../models/Product.js";
 import Notification from "../../models/Notification.js";
@@ -6,8 +7,12 @@ import Order from "../../models/Order.js";
 // import Product from "../models/Product.js";
 import SellPost from "../../models/SellPost.js"; // ✅ ADD THIS
 import BulkOrder from "../../models/BulkOrder.js";
-import Category from "../../models/Category.js";
 import DeviceSession from "../../models/DeviceSession.js";
+import {
+  getUniqueActiveDeviceSessions,
+  SUPERADMIN_MAX_DEVICES,
+} from "../../services/deviceSessionService.js";
+import { getAdminLogs } from "../../services/adminLogService.js";
 import {
   DELIVERY_CHARGE,
   PROFIT_RATES,
@@ -18,6 +23,16 @@ import {
   notifyProductDecision,
 } from "../../services/notificationService.js";
 import { verifyOtpToken } from "../../services/otpService.js";
+import {
+  deleteProductWithCascade,
+  deleteUserWithCascade,
+} from "../../services/productCascadeService.js";
+export {
+  createAdminCategory,
+  deleteAdminCategory,
+  getAdminCategories,
+  updateAdminCategory,
+} from "./categoryController.js";
 
 const validOrderStatuses = [
   "pending",
@@ -53,6 +68,21 @@ const getImageUrlFromRequest = (req) => {
   }
 
   return "";
+};
+
+const getAdminAccountByRequest = async (req, withPassword = false) => {
+  const adminId = req.user?._id || req.user?.id;
+  const authModel = req.user?.authModel || req.authModel;
+  const select = withPassword ? "+password" : "-password";
+
+  if (authModel === "Admin") {
+    return Admin.findById(adminId).select(select);
+  }
+
+  const admin = await Admin.findById(adminId).select(select);
+  if (admin) return admin;
+
+  return User.findById(adminId).select(select);
 };
 
 const isPaidLikeStatus = (value) => {
@@ -189,20 +219,39 @@ export const getSuperAdminDevices = async (req, res) => {
     }
 
     const userId = req.user._id || req.user.id;
-    const sessions = await DeviceSession.find({
-      user: userId,
-      revokedAt: null,
-    })
-      .sort({ lastActiveAt: -1 })
-      .select("-userAgent");
+    const sessions = await getUniqueActiveDeviceSessions(userId);
 
     return res.json({
       success: true,
-      devices: sessions,
-      maxDevices: 3,
+      devices: sessions.map((session) => {
+        const plain =
+          typeof session.toObject === "function" ? session.toObject() : session;
+        delete plain.userAgent;
+        return plain;
+      }),
+      maxDevices: SUPERADMIN_MAX_DEVICES,
     });
   } catch (error) {
     console.error("getSuperAdminDevices error:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const getAdminSystemLogs = async (req, res) => {
+  try {
+    if (req.user.authRole !== "superadmin" && req.user.role !== "superadmin") {
+      return res.status(403).json({ message: "Superadmin access required" });
+    }
+
+    const { tab = "all", range = "week", limit = 100 } = req.query || {};
+    const data = await getAdminLogs({ tab, range, limit });
+
+    return res.json({
+      success: true,
+      ...data,
+    });
+  } catch (error) {
+    console.error("getAdminSystemLogs error:", error);
     return res.status(500).json({ message: "Server error", error: error.message });
   }
 };
@@ -217,7 +266,7 @@ export const revokeSuperAdminDevice = async (req, res) => {
     const { password, otpToken } = req.body || {};
 
     const userId = req.user._id || req.user.id;
-    const user = await User.findById(userId).select("+password");
+    const user = await getAdminAccountByRequest(req, true);
 
     if (!verifyOtpToken({ token: otpToken, phone: user?.phone, purpose: "password-reset" })) {
       return res.status(403).json({ message: "OTP verification is required" });
@@ -599,8 +648,7 @@ const transferInventoryForBulkOrderApproval = async (bulkOrder) => {
 // Get Admin Profile
 export const getAdminProfile = async (req, res) => {
   try {
-    const adminId = req.user.id; // Extract user ID from token
-    const admin = await User.findById(adminId).select("-password"); // Exclude password field
+    const admin = await getAdminAccountByRequest(req);
 
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
@@ -633,7 +681,8 @@ export const updateAdminProfile = async (req, res) => {
     const imageUrl = getImageUrlFromRequest(req);
     if (imageUrl) updateData.image = imageUrl;
 
-    const updatedAdmin = await User.findByIdAndUpdate(
+    const AdminModel = req.user?.authModel === "Admin" ? Admin : User;
+    const updatedAdmin = await AdminModel.findByIdAndUpdate(
       adminId,
       { $set: updateData },
       { new: true, runValidators: true, select: "-password" } // Exclude password field
@@ -659,7 +708,8 @@ export const updateAdminProfileImage = async (req, res) => {
       return res.status(400).json({ message: "No image provided" });
     }
 
-    const updatedAdmin = await User.findByIdAndUpdate(
+    const AdminModel = req.user?.authModel === "Admin" ? Admin : User;
+    const updatedAdmin = await AdminModel.findByIdAndUpdate(
       adminId,
       { image: imageUrl },
       { new: true, runValidators: true, select: "-password" } // Exclude password field
@@ -675,26 +725,6 @@ export const updateAdminProfileImage = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
-  }
-};
-
-export const getAdminCategories = async (req, res) => {
-  try {
-    const categories = await Category.find()
-      .select("name icon createdAt")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    return res.status(200).json({
-      message: "Categories fetched successfully",
-      count: categories.length,
-      categories,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
   }
 };
 
@@ -810,125 +840,13 @@ export const getAdminProfitReport = async (req, res) => {
   }
 };
 
-export const createAdminCategory = async (req, res) => {
-  try {
-    const name = String(req.body?.name || "").trim();
-    const icon = String(req.body?.icon || "").trim();
-
-    if (!name) {
-      return res.status(400).json({ message: "Category name is required" });
-    }
-
-    if (!icon) {
-      return res.status(400).json({ message: "Category icon is required" });
-    }
-
-    const existing = await Category.findOne({
-      name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
-    });
-
-    if (existing) {
-      return res.status(409).json({ message: "Category already exists" });
-    }
-
-    const category = await Category.create({ name, icon });
-
-    return res.status(201).json({
-      message: "Category created successfully",
-      category,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
-  }
-};
-
-export const updateAdminCategory = async (req, res) => {
-  try {
-    const { categoryId } = req.params;
-    const name = String(req.body?.name || "").trim();
-    const icon = String(req.body?.icon || "").trim();
-
-    const updateData = {};
-    if (name) updateData.name = name;
-    if (icon) updateData.icon = icon;
-
-    if (!Object.keys(updateData).length) {
-      return res.status(400).json({ message: "No category data provided" });
-    }
-
-    if (name) {
-      const existing = await Category.findOne({
-        _id: { $ne: categoryId },
-        name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
-      });
-
-      if (existing) {
-        return res.status(409).json({ message: "Category already exists" });
-      }
-    }
-
-    const category = await Category.findByIdAndUpdate(
-      categoryId,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
-
-    if (!category) {
-      return res.status(404).json({ message: "Category not found" });
-    }
-
-    return res.status(200).json({
-      message: "Category updated successfully",
-      category,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
-  }
-};
-
-export const deleteAdminCategory = async (req, res) => {
-  try {
-    const { categoryId } = req.params;
-    const usedByProduct = await Product.exists({ category: categoryId });
-
-    if (usedByProduct) {
-      return res.status(409).json({
-        message: "Category is used by products and cannot be deleted",
-      });
-    }
-
-    const category = await Category.findByIdAndDelete(categoryId);
-
-    if (!category) {
-      return res.status(404).json({ message: "Category not found" });
-    }
-
-    return res.status(200).json({
-      message: "Category deleted successfully",
-      category,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
-  }
-};
-
 // Change Admin Password
 export const changeAdminPassword = async (req, res) => {
   try {
-    const adminId = req.user.id; // Extract user ID from token
     const { oldPassword, newPassword, otpToken } = req.body;
 
     // Find user
-    const admin = await User.findById(adminId);
+    const admin = await getAdminAccountByRequest(req, true);
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
     }
@@ -1050,10 +968,9 @@ export const deleteUserById = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Delete user
-    await User.findByIdAndDelete(userId);
+    const deletion = await deleteUserWithCascade(userId);
 
-    res.json({ message: "User deleted successfully" });
+    res.json({ message: "User deleted successfully", cleanup: deletion.cleanup });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -1123,8 +1040,8 @@ export const deleteConsumerById = async (req, res) => {
       return res.status(404).json({ message: "Consumer not found" });
     }
 
-    await User.findByIdAndDelete(userId);
-    res.json({ message: "Consumer deleted successfully" });
+    const deletion = await deleteUserWithCascade(userId);
+    res.json({ message: "Consumer deleted successfully", cleanup: deletion.cleanup });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -1257,8 +1174,8 @@ export const deleteSuperSalerById = async (req, res) => {
       return res.status(404).json({ message: "SuperSaler not found" });
     }
 
-    await User.findByIdAndDelete(userId);
-    res.json({ message: "SuperSaler deleted successfully" });
+    const deletion = await deleteUserWithCascade(userId);
+    res.json({ message: "SuperSaler deleted successfully", cleanup: deletion.cleanup });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -1417,8 +1334,8 @@ export const deleteWholesalerById = async (req, res) => {
       return res.status(404).json({ message: "Wholesaler not found" });
     }
 
-    await User.findByIdAndDelete(userId);
-    res.json({ message: "Wholesaler deleted successfully" });
+    const deletion = await deleteUserWithCascade(userId);
+    res.json({ message: "Wholesaler deleted successfully", cleanup: deletion.cleanup });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -1582,8 +1499,8 @@ export const deleteProducerById = async (req, res) => {
       return res.status(404).json({ message: "Producer not found" });
     }
 
-    await User.findByIdAndDelete(userId);
-    res.json({ message: "Producer deleted successfully" });
+    const deletion = await deleteUserWithCascade(userId);
+    res.json({ message: "Producer deleted successfully", cleanup: deletion.cleanup });
   } catch (error) {
     console.error("Error deleting producer:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -1729,8 +1646,7 @@ export const deleteProductById = async (req, res) => {
       notification: deletionStartedNotification
     });
 
-    // Delete the product
-    await Product.findByIdAndDelete(productId);
+    const deletion = await deleteProductWithCascade(product);
 
     // Create notification for deletion completed
     const deletionCompletedNotification = new Notification({
@@ -1750,6 +1666,7 @@ export const deleteProductById = async (req, res) => {
 
     res.json({ 
       message: "Product deleted successfully",
+      cleanup: deletion?.cleanup || {},
       notifications: {
         started: deletionStartedNotification,
         completed: deletionCompletedNotification
@@ -2108,7 +2025,15 @@ export const getAllSellPostsForAdmin = async (req, res) => {
       .populate("producer", "name phone")
       .sort({ createdAt: -1 });
 
-    res.json({ message: "All sell posts fetched", posts });
+    const stalePostIds = posts.filter((post) => !post.product).map((post) => post._id);
+    if (stalePostIds.length) {
+      await SellPost.deleteMany({ _id: { $in: stalePostIds } });
+    }
+
+    res.json({
+      message: "All sell posts fetched",
+      posts: posts.filter((post) => post.product),
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

@@ -61,7 +61,7 @@ export const getRetailPostsForConsumer = async (req, res) => {
     const posts = await SellPost.find(filter)
       .populate(
         "product",
-        "productName image category price pricePerKg productType"
+        "productName image category price pricePerKg productType adminProfitRate"
       )
       .populate(
         "seller",
@@ -69,9 +69,17 @@ export const getRetailPostsForConsumer = async (req, res) => {
       )
       .sort({ createdAt: -1 });
 
-    const pricedPosts = posts.map((post) =>
-      applyPricingToSellPost(post, PROFIT_RATES.retailToConsumer)
-    );
+    const stalePostIds = posts
+      .filter((post) => !post.product)
+      .map((post) => post._id);
+
+    if (stalePostIds.length) {
+      await SellPost.deleteMany({ _id: { $in: stalePostIds } });
+    }
+
+    const pricedPosts = posts
+      .filter((post) => post.product)
+      .map((post) => applyPricingToSellPost(post, PROFIT_RATES.retailToConsumer));
 
     return res.status(200).json({
       message: "Retail posts fetched successfully",
@@ -111,6 +119,7 @@ export const getSingleRetailProductForConsumer = async (req, res) => {
         quantity
         price
         pricePerKg
+        adminProfitRate
         productType
         `
       )
@@ -125,7 +134,11 @@ export const getSingleRetailProductForConsumer = async (req, res) => {
         `
       );
 
-    if (!post) {
+    if (!post || !post.product) {
+      if (post && !post.product) {
+        await SellPost.deleteOne({ _id: post._id });
+      }
+
       return res.status(404).json({
         message: "Retail product not found",
       });

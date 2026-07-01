@@ -1,20 +1,36 @@
 import User from "../models/User.js";
+import Admin from "../models/Admin.js";
 import { getPhoneLookupValues, sendOtp, verifyOtp } from "../services/otpService.js";
 
 const existingUserRequiredPurposes = new Set(["login", "password-reset"]);
+const normalizeRole = (role = "") => {
+  const value = String(role || "").trim().toLowerCase();
+  return value === "superseller" ? "supersaler" : value;
+};
 
-const validateOtpRequest = async ({ phone, purpose }) => {
+const validateOtpRequest = async ({ phone, purpose, role }) => {
   if (!phone) return "Phone number is required";
   if (!purpose) return "OTP purpose is required";
 
   if (existingUserRequiredPurposes.has(purpose)) {
-    const user = await User.findOne({ phone: { $in: getPhoneLookupValues(phone) } });
+    const lookup = { phone: { $in: getPhoneLookupValues(phone) } };
+    const admin = await Admin.findOne(lookup);
+    const user = admin || await User.findOne(lookup);
     if (!user) return "No account found with this phone number";
+    if (purpose === "password-reset" && role) {
+      const requestedRole = normalizeRole(role);
+      const userRole = normalizeRole(user.role);
+      if (requestedRole && requestedRole !== userRole) {
+        return "Phone number and role do not match";
+      }
+    }
   }
 
   if (purpose === "register") {
-    const user = await User.findOne({ phone: { $in: getPhoneLookupValues(phone) } });
-    if (user) return "Phone number already registered";
+    const lookup = { phone: { $in: getPhoneLookupValues(phone) } };
+    const user = await User.findOne(lookup);
+    const admin = await Admin.findOne(lookup);
+    if (user || admin) return "Phone number already registered";
   }
 
   return "";
@@ -22,8 +38,8 @@ const validateOtpRequest = async ({ phone, purpose }) => {
 
 export const sendOtpCode = async (req, res) => {
   try {
-    const { phone, purpose = "register" } = req.body || {};
-    const validationError = await validateOtpRequest({ phone, purpose });
+    const { phone, purpose = "register", role } = req.body || {};
+    const validationError = await validateOtpRequest({ phone, purpose, role });
 
     if (validationError) {
       return res.status(400).json({ message: validationError });
@@ -41,7 +57,13 @@ export const sendOtpCode = async (req, res) => {
 
 export const verifyOtpCode = async (req, res) => {
   try {
-    const { phone, otp, code, purpose = "register" } = req.body || {};
+    const { phone, otp, code, purpose = "register", role } = req.body || {};
+    const validationError = await validateOtpRequest({ phone, purpose, role });
+
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
     const verification = await verifyOtp({
       phone,
       code: code || otp,
@@ -54,8 +76,11 @@ export const verifyOtpCode = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "OTP verified successfully",
+      message: verification.fallback
+        ? "OTP verified with temporary fallback code 123456"
+        : "OTP verified successfully",
       otpToken: verification.otpToken,
+      fallback: Boolean(verification.fallback),
     });
   } catch (error) {
     return res.status(500).json({

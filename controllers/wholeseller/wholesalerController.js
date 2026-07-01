@@ -2,11 +2,13 @@ import bcrypt from "bcryptjs";
 import User from "../../models/User.js";
 import Product from "../../models/Product.js";
 import SellPost from "../../models/SellPost.js";
+import { deleteProductWithCascade } from "../../services/productCascadeService.js";
 import {
   DELIVERY_CHARGE,
   PROFIT_RATES,
   applyPricingToSellPost,
   buildPricingBreakdown,
+  getEffectiveProfitRate,
 } from "../../services/pricingService.js";
 import { verifyOtpToken } from "../../services/otpService.js";
 
@@ -361,16 +363,21 @@ export const getBulkPostsForWholesaler = async (req, res) => {
       // visibility rules
       visibility: { $in: ["all", "wholesaler"] },
     })
-      .populate("product", "productName image price description category")
+      .populate("product", "productName image price description category adminProfitRate")
       .populate("producer", "name phone")
       .sort({ createdAt: -1 });
 
     // ==========================
     // Response
     // ==========================
-    const pricedPosts = posts.map((post) =>
-      applyPricingToSellPost(post, PROFIT_RATES.supersalerBulkToWholesaler)
-    );
+    const stalePostIds = posts.filter((post) => !post.product).map((post) => post._id);
+    if (stalePostIds.length) {
+      await SellPost.deleteMany({ _id: { $in: stalePostIds } });
+    }
+
+    const pricedPosts = posts
+      .filter((post) => post.product)
+      .map((post) => applyPricingToSellPost(post, PROFIT_RATES.supersalerBulkToWholesaler));
 
     return res.status(200).json({
       message: "Bulk posts fetched successfully",
@@ -453,7 +460,11 @@ export const getBulkPostDetailsForWholesaler = async (req, res) => {
       })
       .populate("seller", "name email phone division district thana");
 
-    if (!post) {
+    if (!post || !post.product) {
+      if (post && !post.product) {
+        await SellPost.deleteOne({ _id: post._id });
+      }
+
       return res.status(404).json({
         message: "Bulk post not found",
       });
@@ -532,7 +543,11 @@ export const createBulkOrder = async (req, res) => {
       .populate("product")
       .populate("seller");
 
-    if (!sellPost) {
+    if (!sellPost || !sellPost.product) {
+      if (sellPost && !sellPost.product) {
+        await SellPost.deleteOne({ _id: sellPost._id });
+      }
+
       return res.status(404).json({
         message: "Sell post not found",
       });
@@ -570,7 +585,7 @@ export const createBulkOrder = async (req, res) => {
     const pricing = buildPricingBreakdown({
       basePrice: baseUnitPrice,
       quantity,
-      ratePercent: PROFIT_RATES.supersalerBulkToWholesaler,
+      ratePercent: getEffectiveProfitRate(sellPost, PROFIT_RATES.supersalerBulkToWholesaler),
     });
     const unitPrice = pricing.finalPrice;
     const totalAmount = pricing.totalAmount;
@@ -635,7 +650,7 @@ export const getWholesalerOwnOrders = async (req, res) => {
     }
 
     const orders = await BulkOrder.find(filter)
-      .populate("product", "productName image price")
+      .populate("product", "productName image price adminProfitRate")
       .populate("sellPost", "title pricePerUnit remainingQuantity")
       .populate("producer", "name phone email")
       .sort({ createdAt: -1 });
@@ -729,10 +744,11 @@ export const markWholesalerOrderProductSoldOffline = async (req, res) => {
       });
     }
 
-    await Product.deleteOne({ _id: product._id });
+    const deletion = await deleteProductWithCascade(product);
 
     return res.status(200).json({
       message: "Product marked as sold offline and removed permanently",
+      cleanup: deletion?.cleanup || {},
     });
   } catch (error) {
     console.error("markWholesalerOrderProductSoldOffline error:", error);

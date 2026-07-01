@@ -25,6 +25,7 @@ import chat from "./routes/chat.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import { ensureSuperAdmin } from "./services/superAdminSeed.js";
 import socketService from "./services/socketService.js";
+import { adminRequestLogger } from "./services/adminLogService.js";
 
 dotenv.config();
 await connectDB();
@@ -41,6 +42,7 @@ app.set('io', io);
 app.use(bodyParser.json());
 
 app.use(express.json());
+app.use(adminRequestLogger);
 
 app.use(
   cors({

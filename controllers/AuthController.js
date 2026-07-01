@@ -1,14 +1,24 @@
 import User from "../models/User.js";
+import Admin from "../models/Admin.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { isAdminRole } from "../utils/roles.js";
-import crypto from "crypto";
-import { UAParser } from "ua-parser-js";
-import DeviceSession from "../models/DeviceSession.js";
 import { getPhoneLookupValues, verifyOtpToken } from "../services/otpService.js";
+import { upsertSuperadminDeviceSession } from "../services/deviceSessionService.js";
 
 dotenv.config();
+
+const publicAccount = (account) => {
+  const plain = typeof account?.toObject === "function" ? account.toObject() : { ...(account || {}) };
+  delete plain.password;
+  return plain;
+};
+
+const findAdminByPhone = (phone, withPassword = false) => {
+  const query = Admin.findOne({ phone: { $in: getPhoneLookupValues(phone) } });
+  return withPassword ? query.select("+password") : query;
+};
 
 
 // export const registerUser = async (req, res) => {
@@ -96,6 +106,11 @@ export const registerUser = async (req, res) => {
     const rolesRequiringApproval = ["supersaler", "wholesaler", "producer"];
     const status = rolesRequiringApproval.includes(role) ? "pending" : "approved";
 
+    const existingAdminPhone = await findAdminByPhone(phone);
+    if (existingAdminPhone) {
+      return res.status(400).json({ message: "Phone already registered", field: "phone" });
+    }
+
     const newUser = new User({
       name,
       email,
@@ -157,7 +172,8 @@ export const registerConsumer = async (req, res) => {
 
     // Check if phone is already registered
     let existingUser = await User.findOne({ phone });
-    if (existingUser) {
+    const existingAdmin = await findAdminByPhone(phone);
+    if (existingUser || existingAdmin) {
       return res.status(400).json({ message: "Phone number already registered" });
     }
 
@@ -222,6 +238,58 @@ export const loginUser = async (req, res) => {
         .json({ message: "Phone and Password are required" });
     }
 
+    const admin = await findAdminByPhone(phone, true);
+
+    if (admin) {
+      if (admin.status !== "approved") {
+        return res.status(403).json({ message: "Admin approval required for login" });
+      }
+
+      const isAdminPasswordMatch = await bcrypt.compare(password, admin.password || "");
+      if (!isAdminPasswordMatch) {
+        return res.status(400).json({ message: "Invalid Phone or Password" });
+      }
+
+      if (!verifyOtpToken({ token: otpToken, phone, purpose: "login" })) {
+        return res.status(403).json({ message: "Admin OTP verification is required" });
+      }
+
+      admin.lastLogin = new Date();
+      await admin.save();
+
+      const tokenPayload = {
+        id: admin._id,
+        role: admin.role,
+        authModel: "Admin",
+      };
+
+      if (admin.role === "superadmin") {
+        const deviceSessionResult = await upsertSuperadminDeviceSession({
+          req,
+          userId: admin._id,
+        });
+
+        if (deviceSessionResult.limitExceeded) {
+          return res.status(403).json({
+            message: "Maximum 3 devices are allowed for superadmin. Remove a device first.",
+            maxDevices: deviceSessionResult.maxDevices,
+          });
+        }
+
+        tokenPayload.sessionId = deviceSessionResult.session.sessionId;
+      }
+
+      const token = jwt.sign(tokenPayload, process.env.jwt_secret, { expiresIn: "30d" });
+      const cleanAdmin = publicAccount(admin);
+
+      return res.json({
+        message: "Login successful",
+        token,
+        user: cleanAdmin,
+        admin: cleanAdmin,
+      });
+    }
+
     const user = await User.findOne({ phone });
     if (!user) {
       return res.status(400).json({ message: "Invalid Phone or Password" });
@@ -248,36 +316,22 @@ export const loginUser = async (req, res) => {
     user.lastLogin = new Date();
     await user.save();
 
-    const sessionId = crypto.randomUUID();
     const tokenPayload = { id: user._id, role: user.role };
 
     if (user.role === "superadmin") {
-      const activeSessions = await DeviceSession.find({
-        user: user._id,
-        revokedAt: null,
-      }).sort({ lastActiveAt: 1 });
+      const deviceSessionResult = await upsertSuperadminDeviceSession({
+        req,
+        userId: user._id,
+      });
 
-      if (activeSessions.length >= 3) {
+      if (deviceSessionResult.limitExceeded) {
         return res.status(403).json({
           message: "Maximum 3 devices are allowed for superadmin. Remove a device first.",
+          maxDevices: deviceSessionResult.maxDevices,
         });
       }
 
-      const parsedAgent = new UAParser(req.headers["user-agent"] || "").getResult();
-      await DeviceSession.create({
-        user: user._id,
-        sessionId,
-        deviceName: [parsedAgent.device.vendor, parsedAgent.device.model]
-          .filter(Boolean)
-          .join(" ") || parsedAgent.device.type || "Desktop",
-        browser: [parsedAgent.browser.name, parsedAgent.browser.version].filter(Boolean).join(" "),
-        os: [parsedAgent.os.name, parsedAgent.os.version].filter(Boolean).join(" "),
-        ipAddress: req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || "",
-        userAgent: req.headers["user-agent"] || "",
-        lastActiveAt: new Date(),
-      });
-
-      tokenPayload.sessionId = sessionId;
+      tokenPayload.sessionId = deviceSessionResult.session.sessionId;
     }
 
     // Generate JWT token
@@ -287,11 +341,13 @@ export const loginUser = async (req, res) => {
       { expiresIn: "30d" }
     );
 
+    const cleanUser = publicAccount(user);
+
     res.json({
       message: "Login successful",
       token,
-      user,
-      admin: isAdminRole(user.role) ? user : undefined,
+      user: cleanUser,
+      admin: isAdminRole(user.role) ? cleanUser : undefined,
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -300,7 +356,7 @@ export const loginUser = async (req, res) => {
 
 export const resetPasswordWithOtp = async (req, res) => {
   try {
-    const { phone, newPassword, otpToken } = req.body || {};
+    const { phone, role, newPassword, otpToken } = req.body || {};
 
     if (!phone || !newPassword) {
       return res.status(400).json({ message: "Phone and new password are required" });
@@ -310,10 +366,17 @@ export const resetPasswordWithOtp = async (req, res) => {
       return res.status(403).json({ message: "OTP verification is required" });
     }
 
-    const user = await User.findOne({ phone: { $in: getPhoneLookupValues(phone) } });
+    const lookup = { phone: { $in: getPhoneLookupValues(phone) } };
+    const user = await findAdminByPhone(phone, true) || await User.findOne(lookup);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    const requestedRole = normalizeAuthRole(role);
+    const userRole = normalizeAuthRole(user.role);
+    if (requestedRole && requestedRole !== userRole) {
+      return res.status(400).json({ message: "Phone number and role do not match" });
     }
 
     user.password = newPassword;
@@ -323,6 +386,11 @@ export const resetPasswordWithOtp = async (req, res) => {
   } catch (error) {
     return res.status(500).json({ message: "Server error", error: error.message });
   }
+};
+
+const normalizeAuthRole = (role = "") => {
+  const value = String(role || "").trim().toLowerCase();
+  return value === "superseller" ? "supersaler" : value;
 };
 
 // export const logoutUser = async (req, res) => {
@@ -357,5 +425,3 @@ export const logoutUser = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
-

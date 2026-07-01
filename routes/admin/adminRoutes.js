@@ -10,6 +10,7 @@ import {
   getAdminProfile,
   getAdminCategories,
   getAdminProfitReport,
+  getAdminSystemLogs,
   updateAdminProfile,
   updateAdminProfileImage,
   updateAdminCategory,
@@ -87,6 +88,7 @@ router.get("/devices", verifyToken, verifyAdmin, getSuperAdminDevices);
 router.delete("/devices/:sessionId", verifyToken, verifyAdmin, revokeSuperAdminDevice);
 
 router.get("/profits", verifyToken, verifyAdmin, getAdminProfitReport);
+router.get("/logs", verifyToken, verifyAdmin, getAdminSystemLogs);
 router.get("/categories", verifyToken, verifyAdmin, getAdminCategories);
 router.post("/categories", verifyToken, verifyAdmin, createAdminCategory);
 router.put("/categories/:categoryId", verifyToken, verifyAdmin, updateAdminCategory);

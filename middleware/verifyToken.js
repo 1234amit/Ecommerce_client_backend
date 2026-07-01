@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import User from '../models/User.js';
+import Admin from "../models/Admin.js";
 import DeviceSession from "../models/DeviceSession.js";
 
 dotenv.config();
@@ -16,11 +17,24 @@ export const verifyToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.jwt_secret);
     // Try both id and _id for compatibility
     let user = null;
+    let authModel = decoded.authModel || "User";
     if (decoded.id) {
-      user = await User.findById(decoded.id).select('-password');
+      user =
+        decoded.authModel === "Admin"
+          ? await Admin.findById(decoded.id).select("-password")
+          : await User.findById(decoded.id).select('-password');
     } else if (decoded._id) {
-      user = await User.findById(decoded._id).select('-password');
+      user =
+        decoded.authModel === "Admin"
+          ? await Admin.findById(decoded._id).select("-password")
+          : await User.findById(decoded._id).select('-password');
     }
+
+    if (!user && decoded.authModel !== "Admin") {
+      user = await Admin.findById(decoded.id || decoded._id).select("-password");
+      authModel = user ? "Admin" : authModel;
+    }
+
     if (!user) {
       return res.status(401).json({ message: `Unauthorized: User not found for id: ${decoded.id || decoded._id}` });
     }
@@ -44,6 +58,7 @@ export const verifyToken = async (req, res, next) => {
       req.deviceSession = session;
     }
     req.user = user; // Attach full user object to request
+    req.authModel = authModel;
     next();
   } catch (error) {
     console.error('JWT verification error:', error);

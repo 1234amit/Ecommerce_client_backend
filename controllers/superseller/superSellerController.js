@@ -1,4 +1,5 @@
 import Product from "../../models/Product.js";
+import { deleteProductWithCascade } from "../../services/productCascadeService.js";
 import SellPost from "../../models/SellPost.js";
 import User from "../../models/User.js";
 import bcrypt from "bcryptjs";
@@ -14,6 +15,7 @@ import {
   applyPricingToProduct,
   applyPricingToSellPost,
   buildPricingBreakdown,
+  getEffectiveProfitRate,
 } from "../../services/pricingService.js";
 import { verifyOtpToken } from "../../services/otpService.js";
 
@@ -360,7 +362,7 @@ export const supersalerCheckoutCOD = async (req, res) => {
       const pricing = buildPricingBreakdown({
         basePrice: product.price || 0,
         quantity,
-        ratePercent: PROFIT_RATES.producerBulkToSupersaler,
+        ratePercent: getEffectiveProfitRate(product, PROFIT_RATES.producerBulkToSupersaler),
       });
 
       return {
@@ -394,7 +396,7 @@ export const supersalerCheckoutCOD = async (req, res) => {
       items: orderItems,
       baseSubtotal,
       adminProfit,
-      profitRate: PROFIT_RATES.producerBulkToSupersaler,
+      profitRate: orderItems[0]?.profitRate || PROFIT_RATES.producerBulkToSupersaler,
       subtotal: subtotal,
       deliveryFee: DELIVERY_CHARGE,
       totalAmount: subtotal + DELIVERY_CHARGE,
@@ -795,13 +797,18 @@ export const getBulkPosts = async (req, res) => {
       district: req.user.district,
       thana: req.user.thana,
     })
-      .populate("product", "productName image category")
+      .populate("product", "productName image category adminProfitRate")
       .populate("seller", "name phone")
       .sort({ createdAt: -1 });
 
-    const pricedPosts = posts.map((post) =>
-      applyPricingToSellPost(post, PROFIT_RATES.supersalerBulkToWholesaler)
-    );
+    const stalePostIds = posts.filter((post) => !post.product).map((post) => post._id);
+    if (stalePostIds.length) {
+      await SellPost.deleteMany({ _id: { $in: stalePostIds } });
+    }
+
+    const pricedPosts = posts
+      .filter((post) => post.product)
+      .map((post) => applyPricingToSellPost(post, PROFIT_RATES.supersalerBulkToWholesaler));
 
     res.json({ message: "Bulk posts fetched", posts: pricedPosts });
   } catch (error) {
@@ -834,14 +841,19 @@ export const getBulkPostsForSupersaler = async (req, res) => {
       district: { $regex: new RegExp(`^${userDistrict}$`, "i") },
       thana: { $regex: new RegExp(`^${userThana}$`, "i") },
     })
-      .populate("product", "productName image pricePerKg unit")
+      .populate("product", "productName image pricePerKg unit adminProfitRate")
       .populate("seller", "name phone district thana role")
       .populate("producer", "name phone district thana role")
       .sort({ createdAt: -1 });
 
-    const pricedPosts = posts.map((post) =>
-      applyPricingToSellPost(post, PROFIT_RATES.supersalerBulkToWholesaler)
-    );
+    const stalePostIds = posts.filter((post) => !post.product).map((post) => post._id);
+    if (stalePostIds.length) {
+      await SellPost.deleteMany({ _id: { $in: stalePostIds } });
+    }
+
+    const pricedPosts = posts
+      .filter((post) => post.product)
+      .map((post) => applyPricingToSellPost(post, PROFIT_RATES.supersalerBulkToWholesaler));
 
     return res.json({
       message: "Bulk posts fetched successfully for supersaler",
@@ -1152,10 +1164,11 @@ export const deleteSupersalerOwnProduct = async (req, res) => {
       });
     }
 
-    await Product.findByIdAndDelete(product._id);
+    const deletion = await deleteProductWithCascade(product);
 
     return res.status(200).json({
       message: "Product deleted successfully",
+      cleanup: deletion?.cleanup || {},
     });
   } catch (error) {
     console.error("deleteSupersalerOwnProduct error:", error);
