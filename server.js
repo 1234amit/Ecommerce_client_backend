@@ -14,8 +14,6 @@ import WishListRoutes from "./routes/WishListRoutes.js";
 import cors from "cors";
 import helmet from "helmet";
 import { createServer } from "http";
-import path from 'path';
-import { fileURLToPath } from 'url';
 import profileRoutes from "./routes/profileRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
@@ -27,9 +25,6 @@ import chat from "./routes/chat.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import { ensureSuperAdmin } from "./services/superAdminSeed.js";
 import socketService from "./services/socketService.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 dotenv.config();
 await connectDB();
@@ -46,9 +41,6 @@ app.set('io', io);
 app.use(bodyParser.json());
 
 app.use(express.json());
-
-// Serve static files from uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use(
   cors({

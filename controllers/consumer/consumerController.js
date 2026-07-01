@@ -10,11 +10,6 @@ const getImageUrlFromRequest = (req) => {
     return req.body.image.trim();
   }
 
-  if (req.file) {
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    return `${baseUrl}/${req.file.path}`;
-  }
-
   return "";
 };
 
@@ -242,7 +237,6 @@ export const getProductsForConsumer = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
 
 
 

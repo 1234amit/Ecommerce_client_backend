@@ -183,7 +183,7 @@ const sellPostSchema = new mongoose.Schema(
 
     sellerRole: {
       type: String,
-      enum: ["supersaler", "wholesaler"],
+      enum: ["producer", "supersaler", "wholesaler"],
       required: true,
     },
 

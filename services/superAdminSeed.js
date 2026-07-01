@@ -1,10 +1,14 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 
-const SUPERADMIN_PHONE = "01933329902";
-const SUPERADMIN_PASSWORD = "admin1234";
+const SUPERADMIN_PHONE = process.env.SUPERADMIN_PHONE;
+const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD;
 
 export const ensureSuperAdmin = async () => {
+  if (!SUPERADMIN_PHONE || !SUPERADMIN_PASSWORD) {
+    return null;
+  }
+
   const existingAdmin = await User.findOne({ phone: SUPERADMIN_PHONE }).select("+password");
 
   if (existingAdmin) {

@@ -10,11 +10,6 @@ const getImageUrlFromRequest = (req) => {
     return req.body.image.trim();
   }
 
-  if (req.file) {
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    return `${baseUrl}/${req.file.path}`;
-  }
-
   return "";
 };
 
@@ -462,12 +457,6 @@ export const addProduct = async (req, res) => {
       secondaryImages,
     } = req.body;
 
-    // Main image
-    const imageFile = req.files?.image?.[0];
-
-    // Secondary images
-    const secondaryImageFiles = req.files?.secondaryImages || [];
-
     if (
       !productName ||
       !quantity ||
@@ -483,7 +472,7 @@ export const addProduct = async (req, res) => {
       });
     }
 
-    const mainImage = image || (imageFile ? imageFile.path.replace(/\\/g, "/") : "");
+    const mainImage = image || "";
 
     if (!mainImage) {
       return res.status(400).json({
@@ -531,9 +520,7 @@ export const addProduct = async (req, res) => {
       });
     }
 
-    const secondaryImagePaths = normalizeImageList(secondaryImages).length
-      ? normalizeImageList(secondaryImages)
-      : secondaryImageFiles.map((file) => file.path.replace(/\\/g, "/"));
+    const secondaryImagePaths = normalizeImageList(secondaryImages);
 
     const newProduct = new Product({
       producer: producerId,
@@ -904,11 +891,7 @@ export const createCategory = async (req, res) => {
       return res.status(400).json({ message: "Category name is required" });
     }
 
-    let iconString = "";
-    if (req.file) {
-      // Save the path or URL to database
-      iconString = req.file.path; // e.g., "uploads/icon-123456.webp"
-    }
+    const iconString = typeof req.body?.icon === "string" ? req.body.icon.trim() : "";
 
     const category = new Category({ name, icon: iconString });
     await category.save();

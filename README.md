@@ -232,7 +232,7 @@ All user roles can get their profile information (including image URL) using the
   "user": {
     "_id": "67e84c1270e6de7d321f1b84",
     "name": "John Doe",
-    "phone": "01822769722",
+    "phone": "01XXXXXXXXX",
     "email": "john@example.com",
     "nid": "019289123133",
     "division": "Dhaka",
@@ -242,7 +242,7 @@ All user roles can get their profile information (including image URL) using the
     "tradelicense": "2472938911144511",
     "role": "consumer",
     "status": "approved",
-    "image": "http://localhost:4000/uploads/image-1741459020724-123456789.jpg",
+    "image": "https://res.cloudinary.com/example/image/upload/sample.jpg",
     "lastLogin": "2025-06-23T16:20:35.029Z",
     "createdAt": "2025-03-29T19:37:54.596Z",
     "updatedAt": "2025-06-23T16:20:35.035Z"

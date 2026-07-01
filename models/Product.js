@@ -122,7 +122,7 @@ const productSchema = new mongoose.Schema(
 
     productType: {
   type: String,
-  enum: ["bulk", "rental"],
+  enum: ["bulk", "retail", "rental"],
   // required: true,
 },
 

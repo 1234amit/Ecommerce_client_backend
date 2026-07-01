@@ -27,11 +27,6 @@ const getImageUrlFromRequest = (req) => {
     return req.body.image.trim();
   }
 
-  if (req.file) {
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    return `${baseUrl}/${req.file.path}`;
-  }
-
   return "";
 };
 
@@ -916,9 +911,7 @@ export const addSupersalerProduct = async (req, res) => {
     // ==========================
     let mainImage = null;
 
-    if (req.file) {
-      mainImage = req.file.path;
-    } else if (image) {
+    if (image) {
       mainImage = image;
     }
 
@@ -1100,9 +1093,7 @@ export const updateSupersalerOwnProduct = async (req, res) => {
     }
 
     // Main Image
-    if (req.file) {
-      product.image = req.file.path;
-    } else if (image) {
+    if (image) {
       product.image = image;
     }
 

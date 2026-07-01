@@ -65,6 +65,16 @@ const isAdminCompletedOrderStatus = (value) => {
   return ["confirmed", "delivered", "completed"].includes(normalized);
 };
 
+const emitAdminProfitChanged = (req, payload = {}) => {
+  const io = req.app?.get?.("io");
+  if (!io) return;
+
+  io.to("admin_room").emit("admin_profit_changed", {
+    ...payload,
+    changedAt: new Date(),
+  });
+};
+
 const getProductProfitRate = (product = {}) => {
   if (product.adminProfitRate !== null && product.adminProfitRate !== undefined) {
     return product.adminProfitRate;
@@ -78,6 +88,62 @@ const getProductProfitRate = (product = {}) => {
   }
 
   return PROFIT_RATES.retailToConsumer;
+};
+
+const upsertSellPostForApprovedProduct = async (product) => {
+  if (!product || product.addToSellPost !== "yes") return null;
+
+  const owner = product.producer;
+  const ownerRole = String(owner?.role || product.producerRole || "").toLowerCase();
+  const productType = String(product.productType || "").toLowerCase();
+  const isRetail = ["retail", "rental"].includes(productType);
+  const isBulk = productType === "bulk";
+
+  if (!["producer", "supersaler"].includes(ownerRole) || (!isBulk && !isRetail)) {
+    return null;
+  }
+
+  const sellType = isBulk ? "bulk" : "retail";
+  const price = toNumber(product.price || product.pricePerKg || product.sellingPricePerKg);
+  const quantity = toNumber(product.quantity);
+  const commissionPercent = getProductProfitRate(product);
+  const commissionAmountPerKg = (price * commissionPercent) / 100;
+  const district = owner?.district || product.district || "Unknown";
+  const thana = owner?.thana || product.thana || "Unknown";
+
+  return SellPost.findOneAndUpdate(
+    {
+      product: product._id,
+      sellType,
+    },
+    {
+      $set: {
+        producer: owner?._id || owner,
+        seller: owner?._id || owner,
+        sellerRole: ownerRole,
+        quantity,
+        soldQuantity: 0,
+        remainingQuantity: quantity,
+        unit: product.unit || "kg",
+        basePricePerKg: price,
+        sellingPricePerKg: price,
+        increasedAmountPerKg: 0,
+        commissionPercent,
+        commissionAmountPerKg,
+        totalPrice: price * quantity,
+        totalCommission: commissionAmountPerKg * quantity,
+        district,
+        thana,
+        visibility: isBulk ? "all" : "consumer",
+        isActive: true,
+      },
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+    }
+  );
 };
 
 export const updateProductProfitRate = async (req, res) => {
@@ -148,14 +214,15 @@ export const revokeSuperAdminDevice = async (req, res) => {
     }
 
     const { sessionId } = req.params;
-    const { password, otp } = req.body || {};
-
-    if (otp !== "123456") {
-      return res.status(400).json({ message: "Invalid OTP" });
-    }
+    const { password, otpToken } = req.body || {};
 
     const userId = req.user._id || req.user.id;
     const user = await User.findById(userId).select("+password");
+
+    if (!verifyOtpToken({ token: otpToken, phone: user?.phone, purpose: "password-reset" })) {
+      return res.status(403).json({ message: "OTP verification is required" });
+    }
+
     const passwordMatches = await bcrypt.compare(password || "", user?.password || "");
 
     if (!passwordMatches) {
@@ -922,6 +989,53 @@ export const getUserById = async (req, res) => {
     res.json({ message: "User details fetched successfully", user });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const getAdminUserDetails = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await User.findById(userId).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const ownProducts = await Product.find({ producer: userId })
+      .populate("category", "name")
+      .populate("producer", "name email phone role division district thana")
+      .sort({ createdAt: -1 })
+      .limit(80)
+      .lean();
+
+    const consumerOrders = await Order.find({ userId })
+      .populate("items.productId", "productName image price productType quantity")
+      .sort({ createdAt: -1 })
+      .limit(80)
+      .lean({ virtuals: true });
+
+    const bulkOrders = await BulkOrder.find({
+      $or: [{ wholesaler: userId }, { producer: userId }],
+    })
+      .populate("product", "productName image price productType quantity")
+      .populate("sellPost", "sellType")
+      .populate("producer", "name email phone role")
+      .populate("wholesaler", "name email phone role")
+      .sort({ createdAt: -1 })
+      .limit(80)
+      .lean();
+
+    return res.json({
+      message: "User details fetched successfully",
+      user,
+      ownProducts: ownProducts.map(withAdminProductPricing),
+      purchasedProducts: [...consumerOrders, ...bulkOrders],
+      consumerOrders,
+      bulkOrders,
+    });
+  } catch (error) {
+    console.error("getAdminUserDetails error:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -1850,6 +1964,7 @@ export const approveProduct = async (req, res) => {
 
     // ✅ Save product
     await product.save({ validateBeforeSave: false });
+    await upsertSellPostForApprovedProduct(product);
 
     await notifyProductDecision({
       product,
@@ -2152,6 +2267,11 @@ export const updateSupersalerOrderStatus = async (req, res) => {
         adminId: req.user._id,
         approved: true,
       });
+      emitAdminProfitChanged(req, {
+        source: "supersaler_order",
+        orderId: syncedOrder?.orderId,
+        adminProfit: syncedOrder?.adminProfit,
+      });
     } else if (syncedOrder?.orderStatus === "cancelled" || syncedOrder?.adminActionStatus === "rejected") {
       await notifyOrderDecision({
         order: syncedOrder,
@@ -2338,6 +2458,11 @@ export const updateWholesalerOrderStatus = async (req, res) => {
         order: syncedOrder,
         adminId: req.user._id,
         approved: true,
+      });
+      emitAdminProfitChanged(req, {
+        source: "wholesaler_order",
+        orderId: syncedOrder?.orderId,
+        adminProfit: syncedOrder?.adminProfit,
       });
     } else if (syncedOrder?.orderStatus === "cancelled" || syncedOrder?.adminActionStatus === "rejected") {
       await notifyOrderDecision({
@@ -2535,6 +2660,11 @@ export const updateConsumerOrderStatus = async (req, res) => {
         order: syncedOrder,
         adminId: req.user._id,
         approved: true,
+      });
+      emitAdminProfitChanged(req, {
+        source: "consumer_order",
+        orderId: syncedOrder?.orderId,
+        adminProfit: syncedOrder?.adminProfit,
       });
     } else if (syncedOrder?.orderStatus === "cancelled" || syncedOrder?.adminActionStatus === "rejected") {
       await notifyOrderDecision({
@@ -2873,118 +3003,12 @@ export const approveSupersalerProductByAdmin = async (req, res) => {
     product.approvedAt = new Date();
 
     await product.save();
-
-    const district =
-      product.producer?.district ||
-      product.district ||
-      "Unknown";
-
-    const thana =
-      product.producer?.thana ||
-      product.thana ||
-      "Unknown";
-
-    // =====================================================
-    // BULK PRODUCT -> WHOLESALER SELL POST
-    // =====================================================
-    if (
-      product.productType === "bulk" &&
-      product.addToSellPost === "yes"
-    ) {
-      await SellPost.create({
-        product: product._id,
-
-        producer: product.producer?._id,
-        seller: product.producer?._id,
-
-        sellerRole: "supersaler",
-
-        sellType: "bulk",
-
-        quantity: Number(product.quantity || 0),
-        soldQuantity: 0,
-        remainingQuantity: Number(product.quantity || 0),
-
-        unit: "kg",
-
-        basePricePerKg: Number(product.price || 0),
-
-        sellingPricePerKg: Number(product.price || 0),
-
-        increasedAmountPerKg: 0,
-
-        commissionPercent: 1,
-
-        commissionAmountPerKg:
-          (Number(product.price || 0) * 1) / 100,
-
-        totalPrice:
-          Number(product.price || 0) *
-          Number(product.quantity || 0),
-
-        totalCommission:
-          ((Number(product.price || 0) * 1) / 100) *
-          Number(product.quantity || 0),
-
-        district,
-        thana,
-
-        visibility: "all",
-
-        isActive: true,
-      });
-    }
-
-    // =====================================================
-    // RENTAL PRODUCT -> CONSUMER SELL POST
-    // =====================================================
-    if (
-      product.productType === "rental" &&
-      product.addToSellPost === "yes"
-    ) {
-      await SellPost.create({
-        product: product._id,
-
-        producer: product.producer?._id,
-        seller: product.producer?._id,
-
-        sellerRole: "supersaler",
-
-        sellType: "retail",
-
-        quantity: Number(product.quantity || 0),
-        soldQuantity: 0,
-        remainingQuantity: Number(product.quantity || 0),
-
-        unit: "kg",
-
-        basePricePerKg: Number(product.price || 0),
-
-        sellingPricePerKg: Number(product.price || 0),
-
-        increasedAmountPerKg: 0,
-
-        commissionPercent: 2,
-
-        commissionAmountPerKg:
-          (Number(product.price || 0) * 2) / 100,
-
-        totalPrice:
-          Number(product.price || 0) *
-          Number(product.quantity || 0),
-
-        totalCommission:
-          ((Number(product.price || 0) * 2) / 100) *
-          Number(product.quantity || 0),
-
-        district,
-        thana,
-
-        visibility: "consumer",
-
-        isActive: true,
-      });
-    }
+    await upsertSellPostForApprovedProduct(product);
+    await notifyProductDecision({
+      product,
+      adminId: req.user._id,
+      approved: true,
+    });
 
     return res.status(200).json({
       message: "Supersaler product approved successfully",
@@ -3202,9 +3226,6 @@ export const approveAllProductByAdmin = async (req, res) => {
       });
     }
 
-    const isSupersalerProduct =
-      product.producer?.role === "supersaler";
-
     // ==========================
     // Approve Product
     // ==========================
@@ -3213,127 +3234,16 @@ export const approveAllProductByAdmin = async (req, res) => {
     product.approvedAt = new Date();
 
     await product.save();
-
-    const district =
-      product.producer?.district ||
-      product.district ||
-      "Unknown";
-
-    const thana =
-      product.producer?.thana ||
-      product.thana ||
-      "Unknown";
-
-    // =====================================================
-    // ONLY FOR SUPERSALER PRODUCTS
-    // =====================================================
-    if (isSupersalerProduct) {
-      // =====================================================
-      // BULK PRODUCT -> WHOLESALER SELL POST
-      // =====================================================
-      if (
-        product.productType === "bulk" &&
-        product.addToSellPost === "yes"
-      ) {
-        await SellPost.create({
-          product: product._id,
-
-          producer: product.producer?._id,
-          seller: product.producer?._id,
-
-          sellerRole: "supersaler",
-
-          sellType: "bulk",
-
-          quantity: Number(product.quantity || 0),
-          soldQuantity: 0,
-          remainingQuantity: Number(product.quantity || 0),
-
-          unit: "kg",
-
-          basePricePerKg: Number(product.price || 0),
-
-          sellingPricePerKg: Number(product.price || 0),
-
-          increasedAmountPerKg: 0,
-
-          commissionPercent: 1,
-
-          commissionAmountPerKg:
-            (Number(product.price || 0) * 1) / 100,
-
-          totalPrice:
-            Number(product.price || 0) *
-            Number(product.quantity || 0),
-
-          totalCommission:
-            ((Number(product.price || 0) * 1) / 100) *
-            Number(product.quantity || 0),
-
-          district,
-          thana,
-
-          visibility: "all",
-
-          isActive: true,
-        });
-      }
-
-      // =====================================================
-      // RENTAL PRODUCT -> CONSUMER SELL POST
-      // =====================================================
-      if (
-        product.productType === "rental" &&
-        product.addToSellPost === "yes"
-      ) {
-        await SellPost.create({
-          product: product._id,
-
-          producer: product.producer?._id,
-          seller: product.producer?._id,
-
-          sellerRole: "supersaler",
-
-          sellType: "retail",
-
-          quantity: Number(product.quantity || 0),
-          soldQuantity: 0,
-          remainingQuantity: Number(product.quantity || 0),
-
-          unit: "kg",
-
-          basePricePerKg: Number(product.price || 0),
-
-          sellingPricePerKg: Number(product.price || 0),
-
-          increasedAmountPerKg: 0,
-
-          commissionPercent: 2,
-
-          commissionAmountPerKg:
-            (Number(product.price || 0) * 2) / 100,
-
-          totalPrice:
-            Number(product.price || 0) *
-            Number(product.quantity || 0),
-
-          totalCommission:
-            ((Number(product.price || 0) * 2) / 100) *
-            Number(product.quantity || 0),
-
-          district,
-          thana,
-
-          visibility: "consumer",
-
-          isActive: true,
-        });
-      }
-    }
+    await upsertSellPostForApprovedProduct(product);
+    await notifyProductDecision({
+      product,
+      adminId: req.user._id,
+      approved: true,
+    });
 
     return res.status(200).json({
       message: "product approved successfully",
-      product,
+      product: withAdminProductPricing(product),
     });
   } catch (error) {
     console.error(
@@ -3706,6 +3616,11 @@ export const adminApproveOrder = async (req, res) => {
       order: { ...order.toObject(), userId: order.wholesaler },
       adminId: req.user._id,
       approved: true,
+    });
+    emitAdminProfitChanged(req, {
+      source: "bulk_order",
+      orderId: order.orderId,
+      adminProfit: order.adminProfit,
     });
 
     return res.status(200).json({

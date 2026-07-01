@@ -16,6 +16,7 @@ import {
   getSuperAdminDevices,
   revokeSuperAdminDevice,
   getAllUsers,
+  getAdminUserDetails,
   getUserById,
   deleteUserById,
   getAllConsumers,
@@ -69,39 +70,16 @@ import {
   approveAllProductByAdmin,
   rejectAllProductByAdmin,
 } from "../../controllers/admin/adminController.js";
-import multer from "multer";
-
 const router = express.Router();
-
-// Multer setup for file upload
-const storage = multer.memoryStorage();
-
-// File filter
-const fileFilter = (req, file, cb) => {
-  // Accept images only
-  if (!file.originalname.match(/\.(jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF)$/)) {
-    req.fileValidationError = 'Only image files are allowed!';
-    return cb(new Error('Only image files are allowed!'), false);
-  }
-  cb(null, true);
-};
-
-const upload = multer({ 
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB max file size
-  }
-});
 
 // Get Admin Profile
 router.get("/profile", verifyToken, verifyAdmin, getAdminProfile);
 
-// Update Admin Profile (with optional image upload)
-router.put("/profile", verifyToken, verifyAdmin, upload.single('image'), updateAdminProfile);
+// Update Admin Profile
+router.put("/profile", verifyToken, verifyAdmin, updateAdminProfile);
 
 // Update Admin Profile Image Only
-router.put("/profile-image", verifyToken, verifyAdmin, upload.single('image'), updateAdminProfileImage);
+router.put("/profile-image", verifyToken, verifyAdmin, updateAdminProfileImage);
 
 // Change Admin Password
 router.put("/change-password", verifyToken, verifyAdmin, changeAdminPassword);
@@ -116,6 +94,8 @@ router.delete("/categories/:categoryId", verifyToken, verifyAdmin, deleteAdminCa
 
 // Get all users (Admin Only)
 router.get("/users", verifyToken, verifyAdmin, getAllUsers);
+
+router.get("/users/:id/details", verifyToken, verifyAdmin, getAdminUserDetails);
 
 // Get a specific user by ID (Admin Only)
 router.get("/users/:id", verifyToken, verifyAdmin, getUserById);
@@ -257,22 +237,6 @@ router.patch("/update-wholesaler-status/:orderId", verifyToken, verifyAdmin, upd
 router.get("/view-consumer-product", verifyToken, verifyAdmin, getAllConsumerOrdersForAdmin)
 
 router.patch("/update-consumer-status/:orderId", verifyToken, verifyAdmin, updateConsumerOrderStatus)
-
-// Error handling middleware for multer
-router.use((error, req, res, next) => {
-  if (error instanceof multer.MulterError) {
-    if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ message: 'File too large. Maximum size is 5MB.' });
-    }
-    return res.status(400).json({ message: 'File upload error: ' + error.message });
-  }
-  
-  if (req.fileValidationError) {
-    return res.status(400).json({ message: req.fileValidationError });
-  }
-  
-  next(error);
-});
 
 
 router.get(

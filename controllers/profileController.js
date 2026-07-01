@@ -5,11 +5,6 @@ const getImageUrlFromRequest = (req) => {
     return req.body.image.trim();
   }
 
-  if (req.file) {
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    return `${baseUrl}/${req.file.path}`;
-  }
-
   return "";
 };
 

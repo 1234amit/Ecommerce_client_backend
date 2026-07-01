@@ -18,40 +18,18 @@ import {
   updateWholesalerProfileImage,
   wholesalerSellProduct,
 } from "../../controllers/wholeseller/wholesalerController.js";
-import multer from "multer";
 import { verifyTokenwholesaler } from "../../middleware/wholeseller/verifyTokenwholesaler.js";
 
 const router = express.Router();
 
-// Multer setup for file upload
-const storage = multer.memoryStorage();
-
-// File filter
-const fileFilter = (req, file, cb) => {
-  // Accept images only
-  if (!file.originalname.match(/\.(jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF)$/)) {
-    req.fileValidationError = 'Only image files are allowed!';
-    return cb(new Error('Only image files are allowed!'), false);
-  }
-  cb(null, true);
-};
-
-const upload = multer({ 
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB max file size
-  }
-});
-
 // Get Wholesaler Profile
 router.get("/profile", verifyToken, verifyWholesaler, getWholesalerProfile);
 
-// Update Wholesaler Profile (with optional image upload)
-router.put("/profile", verifyToken, verifyWholesaler, upload.single('image'), updateWholesalerProfile);
+// Update Wholesaler Profile
+router.put("/profile", verifyToken, verifyWholesaler, updateWholesalerProfile);
 
 // Update Wholesaler Profile Image Only
-router.put("/profile-image", verifyToken, verifyWholesaler, upload.single('image'), updateWholesalerProfileImage);
+router.put("/profile-image", verifyToken, verifyWholesaler, updateWholesalerProfileImage);
 
 // Change Wholesaler Password
 router.put(
@@ -117,22 +95,5 @@ router.put(
   verifyTokenwholesaler,
   payBulkOrderCOD
 );
-
-
-// Error handling middleware for multer
-router.use((error, req, res, next) => {
-  if (error instanceof multer.MulterError) {
-    if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ message: 'File too large. Maximum size is 5MB.' });
-    }
-    return res.status(400).json({ message: 'File upload error: ' + error.message });
-  }
-  
-  if (req.fileValidationError) {
-    return res.status(400).json({ message: req.fileValidationError });
-  }
-  
-  next(error);
-});
 
 export default router;
